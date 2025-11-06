@@ -56,8 +56,6 @@ add_library(
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.h
 )
-#target_link_libraries(imgui PUBLIC glad)
-#target_link_libraries(imgui PUBLIC glfw)
 target_include_directories(
         imgui
         PUBLIC

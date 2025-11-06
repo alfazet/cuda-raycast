@@ -28,6 +28,56 @@ void cursorPosCallback(GLFWwindow* window, double posX, double posY)
     }
 }
 
+void initBuffers(uint& vao, uint& vbo, uint& vbo_tex, uint& ebo)
+{
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &vbo_tex);
+    glGenBuffers(1, &ebo);
+
+    float2 vertices[4];
+    vertices[0] = float2(1.0f, 1.0f);
+    vertices[1] = float2(1.0f, -1.0f);
+    vertices[2] = float2(-1.0f, -1.0f);
+    vertices[3] = float2(-1.0f, 1.0f);
+    float2 tex_coords[4];
+    tex_coords[0] = float2(1.0f, 1.0f);
+    tex_coords[1] = float2(1.0f, 0.0f);
+    tex_coords[2] = float2(0.0f, 0.0f);
+    tex_coords[3] = float2(0.0f, 1.0f);
+    // we'll render triangles 0-1-3 and 1-2-3
+    // (the indices refer to the vertices/texture coordinates above)
+    int indices[] = {0, 1, 3, 1, 2, 3};
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // vertex attrib 0 (positions)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(float2), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float2), nullptr);
+    glEnableVertexAttribArray(0);
+
+    // vertex attrib 1 (tex coords)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_tex);
+    glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(float2), tex_coords, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float2), nullptr);
+    glEnableVertexAttribArray(1);
+}
+
+void initTexture(uint& tex)
+{
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, App::TEXTURE_WIDTH, App::TEXTURE_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE,
+                 nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
 App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{width / 2.0}, m_mouseY{height / 2.0}
 {
     glfwInit();
@@ -47,9 +97,9 @@ App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{wid
     {
         ERR_AND_DIE("gladLoadGL failed");
     }
-    glDepthFunc(GL_LESS);
     glViewport(0, 0, this->width, this->height);
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
 
     IMGUI_CHECKVERSION();
@@ -62,6 +112,11 @@ App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{wid
     glfwSetWindowUserPointer(this->window, this);
     glfwSetFramebufferSizeCallback(this->window, framebufferSizeCallback);
     glfwSetCursorPosCallback(this->window, cursorPosCallback);
+
+    std::string vert_shader_path = std::string(PROJECT_DIR) + "/shaders/shader.vert";
+    std::string frag_shader_path = std::string(PROJECT_DIR) + "/shaders/shader.frag";
+    this->shader = new Shader(vert_shader_path.c_str(), frag_shader_path.c_str());
+    glUseProgram(this->shader->programId);
 }
 
 App::~App()
@@ -91,7 +146,7 @@ void App::run()
             prevTime += curTime;
         }
 
-        glClearColor(0.5, 0.0, 0.25, 1.0);
+        glClearColor(0.5, 0.0, 0.5, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         this->render_imgui_frame(fps);
         glfwSwapBuffers(this->window);
@@ -105,15 +160,15 @@ void App::render_imgui_frame(const int fps)
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    if (!ImGui::Begin("Menu", nullptr, 0))
-    {
-        ImGui::End();
-        return;
-    }
-
-    ImGui::PushItemWidth(0.5f * -ImGui::GetWindowWidth());
-    ImGui::Text("%d FPS", fps);
-    ImGui::End();
+    // if (!ImGui::Begin("Menu", nullptr, 0))
+    // {
+    //     ImGui::End();
+    //     return;
+    // }
+    //
+    // ImGui::PushItemWidth(0.33f * ImGui::GetWindowWidth());
+    // ImGui::Text("%d FPS", fps);
+    // ImGui::End();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

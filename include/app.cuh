@@ -2,18 +2,21 @@
 #define CUDA_RAYCAST_APP_CUH
 
 #include "common.cuh"
-
-void cursorPositionCallback(GLFWwindow* window, double posX, double posY);
+#include "shader.cuh"
+#include "renderer.cuh"
 
 class App
 {
 public:
     constexpr static int DEFAULT_WIN_WIDTH = 1024;
     constexpr static int DEFAULT_WIN_HEIGHT = 576;
+    constexpr static int TEXTURE_WIDTH = 1920;
+    constexpr static int TEXTURE_HEIGHT = 1080;
     constexpr static int BOUND_KEYS[4] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D};
 
     int width, height;
     GLFWwindow* window;
+    Shader* shader;
 
     App();
 
