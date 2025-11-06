@@ -1,5 +1,5 @@
-#ifndef ITS_RAINING_SPHERES_COMMON_CUH
-#define ITS_RAINING_SPHERES_COMMON_CUH
+#ifndef CUDA_RAYCAST_COMMON_CUH
+#define CUDA_RAYCAST_COMMON_CUH
 
 #include <iostream>
 #include <format>
@@ -35,4 +35,4 @@ inline void cudaErrCheck(const cudaError_t res)
         ERR_AND_DIE(cudaGetErrorString(res));
 }
 
-#endif //ITS_RAINING_SPHERES_COMMON_CUH
+#endif //CUDA_RAYCAST_COMMON_CUH

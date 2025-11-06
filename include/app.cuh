@@ -1,5 +1,5 @@
-#ifndef ITS_RAINING_SPHERES_APP_CUH
-#define ITS_RAINING_SPHERES_APP_CUH
+#ifndef CUDA_RAYCAST_APP_CUH
+#define CUDA_RAYCAST_APP_CUH
 
 #include "common.cuh"
 
@@ -38,4 +38,4 @@ private:
     bool m_justSpawned = true;
 };
 
-#endif //ITS_RAINING_SPHERES_APP_CUH
+#endif //CUDA_RAYCAST_APP_CUH

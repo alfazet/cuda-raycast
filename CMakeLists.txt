@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 4.0)
-project(its_raining_spheres LANGUAGES C CXX CUDA)
+project(cuda_raycast LANGUAGES C CXX CUDA)
 include(FetchContent)
 
 set(CMAKE_CUDA_STANDARD 23)
 
 include_directories(include)
 file(GLOB_RECURSE SOURCES src/*.cu)
-add_executable(its_raining_spheres main.cu ${SOURCES})
+add_executable(cuda_raycast main.cu ${SOURCES})
 
 # link CUDA
 find_package(CUDAToolkit REQUIRED)
-target_link_libraries(its_raining_spheres CUDA::cudart)
-target_include_directories(its_raining_spheres PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(cuda_raycast CUDA::cudart)
+target_include_directories(cuda_raycast PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 
 # link dependencies
 FetchContent_Declare(
@@ -20,8 +20,8 @@ FetchContent_Declare(
         GIT_TAG 7b6aead9fb88b3623e3b3725ebb42670cbe4c579 # v3.4
 )
 FetchContent_MakeAvailable(glfw)
-target_link_libraries(its_raining_spheres glfw)
-target_include_directories(its_raining_spheres PRIVATE ${glfw_SOURCE_DIR}/include)
+target_link_libraries(cuda_raycast glfw)
+target_include_directories(cuda_raycast PRIVATE ${glfw_SOURCE_DIR}/include)
 
 FetchContent_Declare(
         glad
@@ -31,7 +31,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glad)
 glad_add_library(glad_gl_core_46 STATIC API gl:core=4.6)
-target_link_libraries(its_raining_spheres glad_gl_core_46)
+target_link_libraries(cuda_raycast glad_gl_core_46)
 
 FetchContent_Declare(
         glm
@@ -39,7 +39,7 @@ FetchContent_Declare(
         GIT_TAG a532f5b1cf27d6a3c099437e6959cf7e398a0a67 # v1.0.2
 )
 FetchContent_MakeAvailable(glm)
-target_link_libraries(its_raining_spheres glm)
+target_link_libraries(cuda_raycast glm)
 
 FetchContent_Declare(
         imgui
@@ -64,11 +64,11 @@ target_include_directories(
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
 )
-target_include_directories(its_raining_spheres PRIVATE ${imgui_SOURCE_DIR})
-target_link_libraries(its_raining_spheres imgui)
+target_include_directories(cuda_raycast PRIVATE ${imgui_SOURCE_DIR})
+target_link_libraries(cuda_raycast imgui)
 
-set_target_properties(its_raining_spheres PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_compile_definitions(its_raining_spheres PRIVATE PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(cuda_raycast PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_compile_definitions(cuda_raycast PRIVATE PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")

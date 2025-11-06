@@ -35,7 +35,7 @@ App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{wid
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    this->window = glfwCreateWindow(this->width, this->height, "It's raining spheres!", nullptr, nullptr);
+    this->window = glfwCreateWindow(this->width, this->height, "CUDA Raycast", nullptr, nullptr);
     if (this->window == nullptr)
     {
         ERR_AND_DIE("glfwCreateWindow failed");
