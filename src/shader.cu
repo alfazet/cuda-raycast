@@ -2,24 +2,6 @@
 
 constexpr int INFO_LOG_LEN = 2048;
 
-std::string slurpFile(const char* file_path)
-{
-    std::ifstream file_stream;
-    try
-    {
-        file_stream.open(file_path);
-    }
-    catch (std::ios_base::failure& fail)
-    {
-        ERR_AND_DIE(fail.what());
-    }
-    std::stringstream content;
-    content << file_stream.rdbuf();
-    file_stream.close();
-
-    return content.str();
-}
-
 void checkShaderCompilation(uint shader)
 {
     int ok;

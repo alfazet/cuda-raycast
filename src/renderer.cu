@@ -13,11 +13,11 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height)
     float u = tx / static_cast<float>(width);
     float v = ty / static_cast<float>(height);
 
-    texBuf[ty * width + tx] = uchar3(static_cast<unsigned char>(255.0 * v), 0, static_cast<unsigned char>(255.0 * u));
+    texBuf[ty * width + tx] = uchar3(static_cast<unsigned char>(128.0 * u), 0, static_cast<unsigned char>(255.0 * v));
 }
 
-Renderer::Renderer(uint pbo, int width, int height) : m_width{width}, m_height{height}, m_blockDim{CUDA_BLOCK_DIM},
-                                                      m_texBuf{nullptr}
+Renderer::Renderer(uint pbo, int width, int height) : m_width{width}, m_height{height}, m_texBuf{nullptr},
+                                                      m_blockDim{CUDA_BLOCK_DIM}
 {
     this->m_gridDim = dim3((this->m_width + this->m_blockDim.x - 1) / this->m_blockDim.x,
                            (this->m_height + this->m_blockDim.y - 1) / this->m_blockDim.y, 1);

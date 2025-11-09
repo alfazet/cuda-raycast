@@ -1,0 +1,42 @@
+#ifndef CUDA_RAYCAST_OBJ_PARSER_CUH
+#define CUDA_RAYCAST_OBJ_PARSER_CUH
+
+#include "common.cuh"
+#include "calc.cuh"
+
+// parser "not-quite-.obj" files
+// supports the following types of entries:
+// - comments (beginning with a `#`)
+// - v x y z (vertex)
+// - vt u v (texture coordinate)
+// - vn x y z (normal)
+// - f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3
+// - color r g b (values 0-255, the color of the object)
+// - texture texture_path (if a texture is used, the color is ignored)
+// - ks k_s (specular reflection coeff)
+// - kd k_d (diffuse reflection coeff)
+// - ka k_a (ambient reflection coeff)
+// - alpha alpha (shininess constant)
+// - light x y z r g b (an isotropic light source with color rgb at (x, y, z))
+class ObjParser
+{
+public:
+    ObjParser(const char* path);
+
+    ~ObjParser();
+
+    void parse(const char* path);
+
+private:
+    void parseLine(const std::string& line);
+
+    float3 parseVertex(const std::string& data);
+
+    float2 parseTexture(const std::string& data);
+
+    glm::vec3 parseNormal(const std::string& data);
+
+    Triangle parseFace(const std::string& data);
+};
+
+#endif //CUDA_RAYCAST_OBJ_PARSER_CUH

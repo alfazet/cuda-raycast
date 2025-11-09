@@ -37,4 +37,22 @@ inline void cudaErrCheck(const cudaError_t res)
         ERR_AND_DIE(cudaGetErrorString(res));
 }
 
+inline std::string slurpFile(const char* file_path)
+{
+    std::ifstream file_stream;
+    try
+    {
+        file_stream.open(file_path);
+    }
+    catch (std::ios_base::failure& fail)
+    {
+        ERR_AND_DIE(fail.what());
+    }
+    std::stringstream content;
+    content << file_stream.rdbuf();
+    file_stream.close();
+
+    return content.str();
+}
+
 #endif //CUDA_RAYCAST_COMMON_CUH
