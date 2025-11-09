@@ -21,6 +21,8 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
+constexpr dim3 CUDA_BLOCK_DIM = dim3(32, 32, 1);
+
 #define ERR_AND_DIE(reason)                                                         \
 {                                                                                   \
     std::cerr << std::format("fatal error in {}, line {}\n", __FILE__, __LINE__);   \

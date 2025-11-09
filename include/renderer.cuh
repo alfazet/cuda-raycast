@@ -6,9 +6,17 @@
 class Renderer
 {
 public:
-    Renderer(int width, int height);
+    Renderer(uint pbo, int width, int height);
 
     ~Renderer();
+
+    void render();
+
+private:
+    cudaGraphicsResource* m_pboRes;
+    int m_width, m_height;
+    void* m_texBuf;
+    dim3 m_blockDim, m_gridDim;
 };
 
 #endif //CUDA_RAYCAST_RENDERER_CUH

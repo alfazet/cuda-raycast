@@ -10,8 +10,6 @@ class App
 public:
     constexpr static int DEFAULT_WIN_WIDTH = 1024;
     constexpr static int DEFAULT_WIN_HEIGHT = 576;
-    constexpr static int TEXTURE_WIDTH = 1920;
-    constexpr static int TEXTURE_HEIGHT = 1080;
     constexpr static int BOUND_KEYS[4] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D};
 
     int width, height;
@@ -26,13 +24,13 @@ public:
 
     void resize(int width, int height);
 
-    void handle_key(int key);
+    void handleKey(int key);
 
-    void handle_keys();
+    void handleKeys();
 
-    void handle_mouse(glm::vec2 delta);
+    void handleMouse(glm::vec2 delta);
 
-    void render_imgui_frame(int fps);
+    void renderImguiFrame(int fps);
 
     friend void cursorPosCallback(GLFWwindow* window, double posX, double posY);
 
