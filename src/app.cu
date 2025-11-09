@@ -5,8 +5,6 @@ void framebufferSizeCallback(GLFWwindow* window, int new_width, int new_height)
     App& app = *static_cast<App*>(glfwGetWindowUserPointer(window));
     app.width = new_width;
     app.height = new_height;
-    // app.resize
-    glViewport(0, 0, new_width, new_height);
 }
 
 void cursorPosCallback(GLFWwindow* window, double posX, double posY)
@@ -72,7 +70,8 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE,
                  nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glGenBuffers(1, &pbo);
@@ -82,7 +81,8 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{width / 2.0}, m_mouseY{height / 2.0}
+App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
+             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_mouseX{width / 2.0}, m_mouseY{height / 2.0}
 {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -122,6 +122,11 @@ App::App() : width{DEFAULT_WIN_HEIGHT}, height{DEFAULT_WIN_HEIGHT}, m_mouseX{wid
     this->shader = new Shader(vert_shader_path.c_str(), frag_shader_path.c_str());
     glUseProgram(this->shader->programId);
 
+    initBuffers(this->m_vao, this->m_vbo, this->m_vboTex, this->m_ebo);
+    initTexture(this->m_tex, this->m_pbo, this->texWidth, this->texHeight);
+    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight);
+    glViewport(0, 0, this->texWidth, this->texHeight);
+
     cudaErrCheck(cudaSetDevice(0));
 }
 
@@ -132,16 +137,17 @@ App::~App()
     ImGui::DestroyContext();
     glUseProgram(0);
     glDeleteProgram(this->shader->programId);
+    glDeleteVertexArrays(1, &this->m_vao);
+    glDeleteBuffers(1, &this->m_vbo);
+    glDeleteBuffers(1, &this->m_vboTex);
+    glDeleteBuffers(1, &this->m_ebo);
+    glDeleteBuffers(1, &this->m_pbo);
+    glDeleteTextures(1, &this->m_tex);
     glfwTerminate();
 }
 
 void App::run()
 {
-    uint vao, vbo, vboTex, ebo, tex, pbo;
-    initBuffers(vao, vbo, vboTex, ebo);
-    initTexture(tex, pbo, this->width, this->height);
-    Renderer renderer(pbo, this->width, this->height);
-
     int fps = 0, framesThisSecond = 0;
     double prevTime = glfwGetTime();
     while (!glfwWindowShouldClose(this->window))
@@ -161,12 +167,12 @@ void App::run()
 
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderer.render();
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, this->width, this->height, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        this->renderer->render();
+        glBindTexture(GL_TEXTURE_2D, this->m_tex);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->m_pbo);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, this->texWidth, this->texHeight, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        glBindVertexArray(vao);
+        glBindVertexArray(this->m_vao);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -174,13 +180,6 @@ void App::run()
         glfwSwapBuffers(this->window);
         glfwPollEvents();
     }
-
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &vboTex);
-    glDeleteBuffers(1, &ebo);
-    glDeleteBuffers(1, &pbo);
-    glDeleteTextures(1, &tex);
 }
 
 void App::renderImguiFrame(const int fps)

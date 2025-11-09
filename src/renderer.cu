@@ -10,9 +10,10 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height)
     {
         return;
     }
-    float rx = tx / static_cast<float>(width);
-    float ry = ty / static_cast<float>(height);
-    texBuf[ty * width + tx] = uchar3(static_cast<unsigned char>(255.0 * rx), 0, static_cast<unsigned char>(255.0 * ry));
+    float u = tx / static_cast<float>(width);
+    float v = ty / static_cast<float>(height);
+
+    texBuf[ty * width + tx] = uchar3(static_cast<unsigned char>(255.0 * v), 0, static_cast<unsigned char>(255.0 * u));
 }
 
 Renderer::Renderer(uint pbo, int width, int height) : m_width{width}, m_height{height}, m_blockDim{CUDA_BLOCK_DIM},
@@ -27,7 +28,6 @@ Renderer::Renderer(uint pbo, int width, int height) : m_width{width}, m_height{h
 Renderer::~Renderer()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
-    // this is broken for some reason
     cudaErrCheck(cudaFree(this->m_texBuf));
 }
 
