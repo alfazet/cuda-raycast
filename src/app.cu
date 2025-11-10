@@ -1,4 +1,5 @@
 #include "app.cuh"
+#include "obj_parser.cuh"
 
 void framebufferSizeCallback(GLFWwindow* window, int new_width, int new_height)
 {
@@ -128,6 +129,11 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
     glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));
+
+    ObjParser parser;
+    // TODO: get file name from cli args
+    parser.parseFile("../test.obj");
+    auto faces = parser.faces;
 }
 
 App::~App()

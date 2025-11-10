@@ -11,8 +11,8 @@
 struct Triangle
 {
     float3 a, b, c;
+    float2 uva, uvb, uvc;
     glm::vec3 na, nb, nc;
-    float2 ua, va, ub, vb, uc, vc;
 };
 
 // TODO: when passing this stuff to the GPU do it like this:

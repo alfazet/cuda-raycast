@@ -4,7 +4,7 @@ float3 ObjParser::parseVertex(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
-    ss << x << y << z;
+    ss >> x >> y >> z;
 
     return float3(x, y, z);
 }
@@ -13,7 +13,8 @@ float2 ObjParser::parseTexture(const std::string& data)
 {
     std::stringstream ss(data);
     float u, v;
-    ss << u << v;
+    ss >> u >> v;
+    assert(u >= 0.0 && u <= 1.0 && v >= 0.0 && v <= 1.0);
 
     return float2(u, v);
 }
@@ -22,19 +23,54 @@ glm::vec3 ObjParser::parseNormal(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
-    ss << x << y << z;
+    ss >> x >> y >> z;
+    glm::vec3 v(x, y, z);
+    v = normalize(v);
 
-    return glm::vec3(x, y, z);
+    return v;
 }
 
 Triangle ObjParser::parseFace(const std::string& data)
 {
     std::stringstream ss(data);
     std::string a, b, c;
-    ss << a << b << c;
-
+    ss >> a >> b >> c;
+    std::stringstream fa(a), fb(b), fc(c);
+    std::string s;
     int va, vb, vc, vta, vtb, vtc, vna, vnb, vnc;
-    // split on slashes
+
+    std::getline(fa, s, '/');
+    va = std::stoi(s);
+    std::getline(fa, s, '/');
+    vta = std::stoi(s);
+    std::getline(fa, s, ' ');
+    vna = std::stoi(s);
+
+    std::getline(fb, s, '/');
+    vb = std::stoi(s);
+    std::getline(fb, s, '/');
+    vtb = std::stoi(s);
+    std::getline(fb, s, ' ');
+    vnb = std::stoi(s);
+
+    std::getline(fc, s, '/');
+    vc = std::stoi(s);
+    std::getline(fc, s, '/');
+    vtc = std::stoi(s);
+    std::getline(fc, s, ' ');
+    vnc = std::stoi(s);
+
+    return Triangle{
+        .a = this->vertices[va - 1],
+        .b = this->vertices[vb - 1],
+        .c = this->vertices[vc - 1],
+        .uva = this->texVertices[vta - 1],
+        .uvb = this->texVertices[vtb - 1],
+        .uvc = this->texVertices[vtc - 1],
+        .na = this->normals[vna - 1],
+        .nb = this->normals[vnb - 1],
+        .nc = this->normals[vnc - 1],
+    };
 }
 
 void ObjParser::parseLine(const std::string& line)
@@ -45,33 +81,25 @@ void ObjParser::parseLine(const std::string& line)
         firstSpace = line.length();
     }
     std::string_view firstToken = line.substr(0, firstSpace);
-    if (firstToken == "#")
+    if (firstToken == "v")
     {
-        std::cerr << "a comment\n";
-    }
-    else if (firstToken == "v")
-    {
-        this->parseVertex(line.substr(firstSpace + 1));
+        this->vertices.emplace_back(this->parseVertex(line.substr(firstSpace + 1)));
     }
     else if (firstToken == "vt")
     {
-        this->parseTexture(line.substr(firstSpace + 1));
+        this->texVertices.emplace_back(this->parseTexture(line.substr(firstSpace + 1)));
     }
     else if (firstToken == "vn")
     {
-        this->parseNormal(line.substr(firstSpace + 1));
+        this->normals.emplace_back(this->parseNormal(line.substr(firstSpace + 1)));
     }
     else if (firstToken == "f")
     {
-        this->parseFace(line.substr(firstSpace + 1));
-    }
-    else
-    {
-        std::cerr << "something invalid\n";
+        this->faces.emplace_back(this->parseFace(line.substr(firstSpace + 1)));
     }
 }
 
-void ObjParser::parse(const char* path)
+void ObjParser::parseFile(const char* path)
 {
     std::string slurped = slurpFile(path), line;
     std::stringstream ss(slurped);

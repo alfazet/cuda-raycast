@@ -21,11 +21,12 @@
 class ObjParser
 {
 public:
-    ObjParser(const char* path);
+    std::vector<float3> vertices;
+    std::vector<float2> texVertices;
+    std::vector<glm::vec3> normals;
+    std::vector<Triangle> faces;
 
-    ~ObjParser();
-
-    void parse(const char* path);
+    void parseFile(const char* path);
 
 private:
     void parseLine(const std::string& line);

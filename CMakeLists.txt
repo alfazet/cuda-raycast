@@ -5,7 +5,7 @@ include(FetchContent)
 set(CMAKE_CUDA_STANDARD 23)
 
 include_directories(include)
-file(GLOB_RECURSE SOURCES src/*.cu)
+file(GLOB_RECURSE SOURCES src/*.cu src/*.cuh)
 add_executable(cuda_raycast main.cu ${SOURCES})
 
 # link CUDA

@@ -39,14 +39,10 @@ inline void cudaErrCheck(const cudaError_t res)
 
 inline std::string slurpFile(const char* file_path)
 {
-    std::ifstream file_stream;
-    try
+    std::ifstream file_stream(file_path);
+    if (file_stream.fail())
     {
-        file_stream.open(file_path);
-    }
-    catch (std::ios_base::failure& fail)
-    {
-        ERR_AND_DIE(fail.what());
+        ERR_AND_DIE(std::format("can't open file `{}`", file_path));
     }
     std::stringstream content;
     content << file_stream.rdbuf();
