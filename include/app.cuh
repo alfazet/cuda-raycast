@@ -1,6 +1,7 @@
 #ifndef CUDA_RAYCAST_APP_CUH
 #define CUDA_RAYCAST_APP_CUH
 
+#include "calc.cuh"
 #include "common.cuh"
 #include "shader.cuh"
 #include "renderer.cuh"
@@ -10,8 +11,8 @@ class App
 public:
     constexpr static int DEFAULT_WIN_WIDTH = 1024;
     constexpr static int DEFAULT_WIN_HEIGHT = 576;
-    constexpr static int DEFAULT_TEXTURE_WIDTH = 2560;
-    constexpr static int DEFAULT_TEXTURE_HEIGHT = 1440;
+    constexpr static int DEFAULT_TEXTURE_WIDTH = 1024;
+    constexpr static int DEFAULT_TEXTURE_HEIGHT = 576;
     constexpr static int BOUND_KEYS[4] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D};
 
     int width, height;
@@ -40,6 +41,7 @@ private:
     double m_mouseX, m_mouseY;
     bool m_justSpawned = true;
     uint m_vao, m_vbo, m_vboTex, m_pbo, m_tex, m_ebo;
+    std::vector<Triangle> m_faces;
 };
 
 #endif //CUDA_RAYCAST_APP_CUH

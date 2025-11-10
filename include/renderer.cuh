@@ -1,6 +1,7 @@
 #ifndef CUDA_RAYCAST_RENDERER_CUH
 #define CUDA_RAYCAST_RENDERER_CUH
 
+#include "calc.cuh"
 #include "common.cuh"
 
 class Renderer
@@ -10,7 +11,7 @@ public:
 
     ~Renderer();
 
-    void render();
+    void render(std::vector<Triangle>& faces);
 
 private:
     cudaGraphicsResource* m_pboRes;

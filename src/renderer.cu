@@ -1,7 +1,5 @@
 #include "renderer.cuh"
 
-#include "app.cuh"
-
 __global__ void shadingKernel(uchar3* texBuf, int width, int height)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -10,10 +8,18 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height)
     {
         return;
     }
-    float u = tx / static_cast<float>(width);
-    float v = ty / static_cast<float>(height);
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = tx / static_cast<float>(width) * aspect_ratio;
+    float y = ty / static_cast<float>(height);
 
-    texBuf[ty * width + tx] = uchar3(static_cast<unsigned char>(128.0 * u), 0, static_cast<unsigned char>(255.0 * v));
+    if (x < 1.5)
+    {
+        texBuf[ty * width + tx] = uchar3(255, 0, 0);
+    }
+    else if (x < 1.77)
+    {
+        texBuf[ty * width + tx] = uchar3(0, 0, 255);
+    }
 }
 
 Renderer::Renderer(uint pbo, int width, int height) : m_width{width}, m_height{height}, m_texBuf{nullptr},
@@ -31,11 +37,18 @@ Renderer::~Renderer()
     cudaErrCheck(cudaFree(this->m_texBuf));
 }
 
-void Renderer::render()
+void Renderer::render(std::vector<Triangle>& faces)
 {
+    int nFaces = faces.size();
+    Triangle* hFaces;
+    cudaErrCheck(cudaMalloc(reinterpret_cast<void**>(&hFaces), nFaces * sizeof(Triangle)));
+    cudaErrCheck(cudaMemcpy(hFaces, faces.data(), nFaces * sizeof(Triangle), cudaMemcpyHostToDevice));
+
     cudaErrCheck(cudaGraphicsMapResources(1, &this->m_pboRes));
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_texBuf, nullptr, this->m_pboRes));
     shadingKernel<<<this->m_gridDim, this->m_blockDim>>>(static_cast<uchar3*>(this->m_texBuf), this->m_width,
                                                          this->m_height);
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
+
+    cudaErrCheck(cudaFree(hFaces));
 }

@@ -128,12 +128,12 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
     this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight);
     glViewport(0, 0, this->texWidth, this->texHeight);
 
-    cudaErrCheck(cudaSetDevice(0));
-
     ObjParser parser;
     // TODO: get file name from cli args
     parser.parseFile("../test.obj");
-    auto faces = parser.faces;
+    this->m_faces = std::move(parser.faces);
+
+    cudaErrCheck(cudaSetDevice(0));
 }
 
 App::~App()
@@ -173,7 +173,7 @@ void App::run()
 
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        this->renderer->render();
+        this->renderer->render(this->m_faces);
         glBindTexture(GL_TEXTURE_2D, this->m_tex);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->m_pbo);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, this->texWidth, this->texHeight, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
