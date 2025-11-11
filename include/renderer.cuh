@@ -2,16 +2,21 @@
 #define CUDA_RAYCAST_RENDERER_CUH
 
 #include "calc.cuh"
+#include "camera.cuh"
 #include "common.cuh"
 
 class Renderer
 {
 public:
+    Camera* camera;
+
     Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces);
 
     ~Renderer();
 
     void render();
+
+    void handleKey(int key, float dt);
 
 private:
     cudaGraphicsResource* m_pboRes{};

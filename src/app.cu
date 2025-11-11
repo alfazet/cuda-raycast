@@ -83,7 +83,7 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
 }
 
 App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
-             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_mouseX{width / 2.0}, m_mouseY{height / 2.0}
+             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_mouseX{width / 2.0f}, m_mouseY{height / 2.0f}, m_dt{0}
 {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -154,23 +154,22 @@ App::~App()
 void App::run()
 {
     int fps = 0, framesThisSecond = 0;
-    double prevTime = glfwGetTime();
+    float prevTime = static_cast<float>(glfwGetTime());
     while (!glfwWindowShouldClose(this->window))
     {
-        this->handleKeys();
-
-        double curTime = glfwGetTime();
+        float curTime = static_cast<float>(glfwGetTime());
+        this->m_dt = min(curTime - prevTime, 1.0 / 60.0);
         framesThisSecond++;
         // check how many frames we rendered over the last second
         // (so the current FPS)
-        if (curTime - prevTime >= 1.0)
+        if (curTime - prevTime >= 1.0f)
         {
             fps = framesThisSecond;
             framesThisSecond = 0;
             prevTime += curTime;
         }
 
-        glClearColor(0.0, 0.0, 0.0, 1.0);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         this->renderer->render();
@@ -185,6 +184,8 @@ void App::run()
         this->renderImguiFrame(fps);
         glfwSwapBuffers(this->window);
         glfwPollEvents();
+
+        this->handleKeys();
     }
 }
 
@@ -209,23 +210,22 @@ void App::renderImguiFrame(const int fps)
 }
 
 
-void App::handleKey(int key)
+void App::handleKey(int key, float dt)
 {
-    (void)key;
+    this->renderer->handleKey(key, dt);
 }
 
 void App::handleKeys()
 {
-    if (glfwGetKey(this->window, GLFW_KEY_Q) == GLFW_PRESS)
+    if (glfwGetKey(this->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(this->window, true);
     }
-
     for (const auto boundKey : BOUND_KEYS)
     {
         if (glfwGetKey(this->window, boundKey) == GLFW_PRESS)
         {
-            this->handleKey(boundKey);
+            this->handleKey(boundKey, this->m_dt);
             break;
         }
     }

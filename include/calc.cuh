@@ -23,7 +23,7 @@ namespace calc
 // intersects the given triangle
 // if there's no intersection, return 0
 // (implements the Möller-Trumbore algorithm)
-__device__ float triangleIntersection(const v3& origin, const v3& ray_dir, const Triangle& triangle);
+__device__ float triangleIntersection(const v3& origin, const v3& dir, const Triangle& triangle);
 }
 
 #endif //CUDA_RAYCAST_CALC_CUH

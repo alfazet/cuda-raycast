@@ -14,6 +14,11 @@
 #include "glm/glm.hpp"
 #define GLM_FORCE_CUDA
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/quaternion.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+
 #include "cuda_runtime.h"
 #include "cuda_gl_interop.h"
 

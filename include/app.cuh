@@ -27,7 +27,7 @@ public:
 
     void run();
 
-    void handleKey(int key);
+    void handleKey(int key, float dt);
 
     void handleKeys();
 
@@ -38,7 +38,7 @@ public:
     friend void cursorPosCallback(GLFWwindow* window, double posX, double posY);
 
 private:
-    double m_mouseX, m_mouseY;
+    float m_mouseX, m_mouseY, m_dt;
     bool m_justSpawned = true;
     uint m_vao, m_vbo, m_vboTex, m_pbo, m_tex, m_ebo;
 };
