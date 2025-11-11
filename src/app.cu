@@ -10,6 +10,10 @@ void framebufferSizeCallback(GLFWwindow* window, int new_width, int new_height)
 
 void cursorPosCallback(GLFWwindow* window, double posX, double posY)
 {
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
+    {
+        return;
+    }
     App& app = *static_cast<App*>(glfwGetWindowUserPointer(window));
     if (app.m_justSpawned)
     {
@@ -19,11 +23,11 @@ void cursorPosCallback(GLFWwindow* window, double posX, double posY)
     }
     else
     {
-        double dX = posX - app.m_mouseX;
-        double dY = app.m_mouseY - posY;
+        double dx = posX - app.m_mouseX;
+        double dy = app.m_mouseY - posY;
         app.m_mouseX = posX;
         app.m_mouseY = posY;
-        app.handleMouse(glm::vec2(dX, dY));
+        app.handleMouse(glm::vec2(dx, dy));
     }
 }
 
@@ -96,7 +100,7 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
         ERR_AND_DIE("glfwCreateWindow failed");
     }
     glfwMakeContextCurrent(this->window);
-    glfwSetInputMode(this->window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    glfwSetInputMode(this->window, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
     glfwSwapInterval(0);
     if (!gladLoadGL(glfwGetProcAddress))
     {
@@ -155,18 +159,21 @@ void App::run()
 {
     int fps = 0, framesThisSecond = 0;
     float prevTime = static_cast<float>(glfwGetTime());
+    float prevSeconds = 0.0f;
     while (!glfwWindowShouldClose(this->window))
     {
+        this->handleKeys();
         float curTime = static_cast<float>(glfwGetTime());
-        this->m_dt = min(curTime - prevTime, 1.0 / 60.0);
+        this->m_dt = curTime - prevTime;
+        prevTime = curTime;
         framesThisSecond++;
         // check how many frames we rendered over the last second
         // (so the current FPS)
-        if (curTime - prevTime >= 1.0f)
+        if (curTime - prevSeconds >= 1.0f)
         {
             fps = framesThisSecond;
             framesThisSecond = 0;
-            prevTime += curTime;
+            prevSeconds += 1.0f;
         }
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -184,8 +191,6 @@ void App::run()
         this->renderImguiFrame(fps);
         glfwSwapBuffers(this->window);
         glfwPollEvents();
-
-        this->handleKeys();
     }
 }
 
@@ -233,5 +238,5 @@ void App::handleKeys()
 
 void App::handleMouse(v2 delta)
 {
-    (void)delta;
+    this->renderer->handleMouse(delta);
 }

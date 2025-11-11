@@ -18,6 +18,8 @@ public:
 
     void handleKey(int key, float dt);
 
+    void handleMouse(v2 delta);
+
 private:
     cudaGraphicsResource* m_pboRes{};
     int m_width, m_height, m_nFaces;

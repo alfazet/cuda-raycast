@@ -17,14 +17,11 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
 
     int hitIdx = -1;
     float minT = FLT_MAX; // for depth-buffering
+
     v2 p = 2.0f * v2(x, y) - 1.0f;
     v4 target = invProjM * v4(p.x, p.y, 1.0f, 1.0f);
     v3 dir = v3(invViewM * v4(glm::normalize(v3(target) / target.w), 0.0f));
-    if (tx == 0 && ty == 0)
-    {
-        printf("camera at (%f, %f, %f)\n", cameraPos.x, cameraPos.y, cameraPos.z);
-        printf("direction [%f, %f, %f]\n", dir.x, dir.y, dir.z);
-    }
+
     for (int i = 0; i < nFaces; i++)
     {
         float t = calc::triangleIntersection(cameraPos, dir, faces[i]);
@@ -51,7 +48,7 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
         break;
     case 4:
     case 5:
-        texBuf[ty * width + tx] = uchar3(128, 128, 128);
+        texBuf[ty * width + tx] = uchar3(0, 128, 128);
         break;
     default:
         texBuf[ty * width + tx] = uchar3(128, 128, 128);
@@ -92,4 +89,9 @@ void Renderer::render()
 void Renderer::handleKey(int key, float dt)
 {
     this->camera->handleKey(key, dt);
+}
+
+void Renderer::handleMouse(v2 delta)
+{
+    this->camera->handleMouse(delta);
 }

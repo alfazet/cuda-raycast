@@ -5,8 +5,8 @@ Camera::Camera(int width, int height, float fov, float near, float far) : m_view
                                                                           m_near{near}, m_far{far}
 {
     this->pos = v3(0.0f, 0.0f, 3.0f);
-    this->m_speed = 1.0f;
-    this->m_rotSpeed = 0.001f;
+    this->m_speed = 2.0f;
+    this->m_rotSpeed = 0.005f;
     this->m_forwardDir = v3(0.0f, 0.0f, -1.0f);
     this->m_rightDir = glm::normalize(glm::cross(this->m_forwardDir, worldUpDir));
     this->m_upDir = glm::normalize(glm::cross(this->m_rightDir, this->m_forwardDir));
@@ -19,25 +19,38 @@ void Camera::handleKey(int key, float dt)
     switch (key)
     {
     case GLFW_KEY_W:
-        this->pos += this->m_forwardDir + dt * this->m_speed;
+        this->pos += this->m_forwardDir * dt * this->m_speed;
         break;
     case GLFW_KEY_S:
-        this->pos += this->m_forwardDir - dt * this->m_speed;
+        this->pos -= this->m_forwardDir * dt * this->m_speed;
         break;
     case GLFW_KEY_D:
-        this->pos += this->m_rightDir + dt * this->m_speed;
+        this->pos += this->m_rightDir * dt * this->m_speed;
         break;
     case GLFW_KEY_A:
-        this->pos += this->m_rightDir - dt * this->m_speed;
+        this->pos -= this->m_rightDir * dt * this->m_speed;
         break;
     case GLFW_KEY_Q:
-        this->pos += this->m_upDir + dt * this->m_speed;
+        this->pos += this->m_upDir * dt * this->m_speed;
         break;
     case GLFW_KEY_E:
-        this->pos += this->m_upDir - dt * this->m_speed;
+        this->pos -= this->m_upDir * dt * this->m_speed;
         break;
     }
     this->setViewMatrix();
+}
+
+void Camera::handleMouse(v2 delta)
+{
+    float dPitch = delta.y * this->m_rotSpeed;
+    float dYaw = delta.x * this->m_rotSpeed;
+
+    glm::quat q = glm::normalize(glm::cross(glm::angleAxis(dPitch, this->m_rightDir),
+                                            glm::angleAxis(-dYaw, worldUpDir)));
+
+    this->m_forwardDir = glm::normalize(glm::rotate(q, this->m_forwardDir));
+    this->m_rightDir = glm::normalize(glm::cross(this->m_forwardDir, worldUpDir));
+    this->m_upDir = glm::normalize(glm::cross(this->m_rightDir, this->m_forwardDir));
 }
 
 // call on viewport change

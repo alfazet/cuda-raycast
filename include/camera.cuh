@@ -22,6 +22,8 @@ public:
 
     void handleKey(int key, float dt);
 
+    void handleMouse(v2 delta);
+
 private:
     int m_viewportWidth, m_viewportHeight;
     v3 m_forwardDir, m_rightDir, m_upDir;
