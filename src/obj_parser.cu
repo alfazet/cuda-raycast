@@ -1,30 +1,30 @@
 #include "obj_parser.cuh"
 
-float3 ObjParser::parseVertex(const std::string& data)
+v3 ObjParser::parseVertex(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
     ss >> x >> y >> z;
 
-    return float3(x, y, z);
+    return {x, y, z};
 }
 
-float2 ObjParser::parseTexture(const std::string& data)
+v2 ObjParser::parseTexture(const std::string& data)
 {
     std::stringstream ss(data);
     float u, v;
     ss >> u >> v;
     assert(u >= 0.0 && u <= 1.0 && v >= 0.0 && v <= 1.0);
 
-    return float2(u, v);
+    return {u, v};
 }
 
-glm::vec3 ObjParser::parseNormal(const std::string& data)
+v3 ObjParser::parseNormal(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
     ss >> x >> y >> z;
-    glm::vec3 v(x, y, z);
+    v3 v(x, y, z);
     v = normalize(v);
 
     return v;
@@ -80,7 +80,7 @@ void ObjParser::parseLine(const std::string& line)
     {
         firstSpace = line.length();
     }
-    std::string_view firstToken = line.substr(0, firstSpace);
+    std::string firstToken = line.substr(0, firstSpace);
     if (firstToken == "v")
     {
         this->vertices.emplace_back(this->parseVertex(line.substr(firstSpace + 1)));

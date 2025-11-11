@@ -31,7 +31,7 @@ public:
 
     void handleKeys();
 
-    void handleMouse(glm::vec2 delta);
+    void handleMouse(v2 delta);
 
     void renderImguiFrame(int fps);
 
@@ -41,7 +41,6 @@ private:
     double m_mouseX, m_mouseY;
     bool m_justSpawned = true;
     uint m_vao, m_vbo, m_vboTex, m_pbo, m_tex, m_ebo;
-    std::vector<Triangle> m_faces;
 };
 
 #endif //CUDA_RAYCAST_APP_CUH

@@ -21,23 +21,23 @@
 class ObjParser
 {
 public:
-    std::vector<float3> vertices;
-    std::vector<float2> texVertices;
-    std::vector<glm::vec3> normals;
+    std::vector<v3> vertices;
+    std::vector<v2> texVertices;
+    std::vector<v3> normals;
     std::vector<Triangle> faces;
 
     void parseFile(const char* path);
 
 private:
-    void parseLine(const std::string& line);
+    static v3 parseVertex(const std::string& data);
 
-    float3 parseVertex(const std::string& data);
+    static v2 parseTexture(const std::string& data);
 
-    float2 parseTexture(const std::string& data);
-
-    glm::vec3 parseNormal(const std::string& data);
+    static v3 parseNormal(const std::string& data);
 
     Triangle parseFace(const std::string& data);
+
+    void parseLine(const std::string& line);
 };
 
 #endif //CUDA_RAYCAST_OBJ_PARSER_CUH

@@ -21,6 +21,13 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
+typedef glm::vec2 v2;
+typedef glm::vec3 v3;
+typedef glm::vec4 v4;
+typedef glm::mat2 m2;
+typedef glm::mat3 m3;
+typedef glm::mat4 m4;
+
 constexpr dim3 CUDA_BLOCK_DIM = dim3(32, 32, 1);
 
 #define ERR_AND_DIE(reason)                                                         \

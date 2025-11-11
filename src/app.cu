@@ -125,13 +125,12 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
 
     initBuffers(this->m_vao, this->m_vbo, this->m_vboTex, this->m_ebo);
     initTexture(this->m_tex, this->m_pbo, this->texWidth, this->texHeight);
-    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight);
-    glViewport(0, 0, this->texWidth, this->texHeight);
 
     ObjParser parser;
     // TODO: get file name from cli args
     parser.parseFile("../test.obj");
-    this->m_faces = std::move(parser.faces);
+    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces);
+    glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));
 }
@@ -173,7 +172,8 @@ void App::run()
 
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        this->renderer->render(this->m_faces);
+
+        this->renderer->render();
         glBindTexture(GL_TEXTURE_2D, this->m_tex);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->m_pbo);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, this->texWidth, this->texHeight, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
@@ -194,15 +194,15 @@ void App::renderImguiFrame(const int fps)
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // if (!ImGui::Begin("Menu", nullptr, 0))
-    // {
-    //     ImGui::End();
-    //     return;
-    // }
-    //
-    // ImGui::PushItemWidth(0.33f * ImGui::GetWindowWidth());
-    // ImGui::Text("%d FPS", fps);
-    // ImGui::End();
+    if (!ImGui::Begin("Menu", nullptr, 0))
+    {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::PushItemWidth(0.33f * ImGui::GetWindowWidth());
+    ImGui::Text("%d FPS", fps);
+    ImGui::End();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -231,7 +231,7 @@ void App::handleKeys()
     }
 }
 
-void App::handleMouse(glm::vec2 delta)
+void App::handleMouse(v2 delta)
 {
     (void)delta;
 }

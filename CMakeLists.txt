@@ -67,7 +67,7 @@ target_link_libraries(cuda_raycast imgui)
 
 set_target_properties(cuda_raycast PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_compile_definitions(cuda_raycast PRIVATE PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets --expt-relaxed-constexpr")
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
 endif ()
