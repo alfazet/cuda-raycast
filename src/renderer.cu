@@ -1,8 +1,7 @@
 #include "renderer.cuh"
 
 __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces, int nFaces, v3 cameraPos,
-                              m4 invProjM,
-                              m4 invViewM)
+                              v3 forwardDir)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     int ty = blockIdx.y * blockDim.y + threadIdx.y;
@@ -15,16 +14,12 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     float y = ty / static_cast<float>(height);
     texBuf[ty * width + tx] = uchar3(0, 0, 0);
 
+    v3 origin = cameraPos + v3(x, y, 0.0f);
     int hitIdx = -1;
     float minT = FLT_MAX; // for depth-buffering
-
-    v2 p = 2.0f * v2(x, y) - 1.0f;
-    v4 target = invProjM * v4(p.x, p.y, 1.0f, 1.0f);
-    v3 dir = v3(invViewM * v4(glm::normalize(v3(target) / target.w), 0.0f));
-
     for (int i = 0; i < nFaces; i++)
     {
-        float t = calc::triangleIntersection(cameraPos, dir, faces[i]);
+        float t = calc::triangleIntersection(origin, forwardDir, faces[i]);
         if (t > 0.0 && t < minT)
         {
             minT = t;
@@ -81,8 +76,7 @@ void Renderer::render()
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_dTexBuf, nullptr, this->m_pboRes));
     shadingKernel<<<this->m_gridDim, this->m_blockDim>>>(static_cast<uchar3*>(this->m_dTexBuf), this->m_width,
                                                          this->m_height, this->m_dFaces, this->m_nFaces,
-                                                         this->camera->pos,
-                                                         this->camera->invProjM, this->camera->invViewM);
+                                                         this->camera->pos, this->camera->forwardDir);
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
 }
 

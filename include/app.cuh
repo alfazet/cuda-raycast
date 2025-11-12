@@ -13,7 +13,8 @@ public:
     constexpr static int DEFAULT_WIN_HEIGHT = 576;
     constexpr static int DEFAULT_TEXTURE_WIDTH = 1024;
     constexpr static int DEFAULT_TEXTURE_HEIGHT = 576;
-    constexpr static int BOUND_KEYS[4] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D};
+    constexpr static int BOUND_KEYS[10] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D, GLFW_KEY_E, GLFW_KEY_Q,
+                                           GLFW_KEY_H, GLFW_KEY_J, GLFW_KEY_K, GLFW_KEY_L};
 
     int width, height;
     int texWidth, texHeight;

@@ -238,5 +238,5 @@ void App::handleKeys()
 
 void App::handleMouse(v2 delta)
 {
-    this->renderer->handleMouse(delta);
+    // this->renderer->handleMouse(delta);
 }
