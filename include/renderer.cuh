@@ -25,6 +25,7 @@ private:
     int m_width, m_height, m_nFaces;
     void* m_dTexBuf; // d -> stored on the device
     Triangle* m_dFaces;
+    Triangle* m_dFacesOriginal;
     dim3 m_blockDim, m_gridDim;
 };
 

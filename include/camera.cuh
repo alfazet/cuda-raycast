@@ -7,7 +7,8 @@ class Camera
 {
 public:
     static constexpr v3 worldUpDir = v3(0.0f, 1.0f, 0.0f);
-    v3 pos, forwardDir, rightDir, upDir;
+    float scale;
+    v3 pos, shift, forwardDir, rightDir, upDir;
 
     Camera(int width, int height, float fov, float near, float far);
 
