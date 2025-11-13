@@ -1,15 +1,18 @@
 #include "camera.cuh"
 
-Camera::Camera(int width, int height, float fov, float near, float far)
+Camera::Camera(v3 pos, float pitch, float yaw, float fov) : pos{pos}, pitch{pitch}, yaw{yaw}, fov{fov}
 {
-    this->pos = v3(0.0f, 0.0f, 3.0f);
-    this->shift = v3(0.0f, 0.0f, 0.0f);
-    this->scale = 1.0f;
     this->m_speed = 2.0f;
-    this->m_rotSpeed = 0.5f;
-    this->forwardDir = v3(0.0f, 0.0f, -1.0f);
-    this->upDir = v3(0.0f, 1.0f, 0.0f);
-    this->rightDir = v3(1.0f, 0.0f, 0.0f);
+    this->m_rotSpeed = 1.0f;
+    this->setDirections();
+}
+
+void Camera::setDirections()
+{
+    this->forward = glm::normalize(v3(-sinf(this->yaw) * cosf(this->pitch), sinf(this->pitch),
+                                      -cosf(this->yaw) * cosf(this->pitch)));
+    this->right = glm::normalize(v3(cosf(this->yaw), 0.0f, -sinf(this->yaw)));
+    this->up = glm::normalize(glm::cross(this->right, this->forward));
 }
 
 void Camera::handleKey(int key, float dt)
@@ -17,31 +20,35 @@ void Camera::handleKey(int key, float dt)
     switch (key)
     {
     case GLFW_KEY_W:
-        this->shift -= this->upDir * dt * this->m_speed;
+        this->pos += this->up * this->m_speed * dt;
         break;
     case GLFW_KEY_S:
-        this->shift += this->upDir * dt * this->m_speed;
-        break;
-    case GLFW_KEY_D:
-        this->shift -= this->rightDir * dt * this->m_speed;
+        this->pos -= this->up * this->m_speed * dt;
         break;
     case GLFW_KEY_A:
-        this->shift += this->rightDir * dt * this->m_speed;
+        this->pos -= this->right * this->m_speed * dt;
         break;
-    case GLFW_KEY_E:
-        this->scale -= dt * this->m_speed;
-        if (this->scale < 0.25f)
-        {
-            this->scale = 0.25f;
-        }
+    case GLFW_KEY_D:
+        this->pos += this->right * this->m_speed * dt;
         break;
     case GLFW_KEY_Q:
-        this->scale += dt * this->m_speed;
+        this->pos -= this->forward * this->m_speed * dt;
+        break;
+    case GLFW_KEY_E:
+        this->pos += this->forward * this->m_speed * dt;
+        break;
+    case GLFW_KEY_UP:
+        this->pitch += this->m_rotSpeed * dt;
+        break;
+    case GLFW_KEY_DOWN:
+        this->pitch -= this->m_rotSpeed * dt;
+        break;
+    case GLFW_KEY_LEFT:
+        this->yaw += this->m_rotSpeed * dt;
+        break;
+    case GLFW_KEY_RIGHT:
+        this->yaw -= this->m_rotSpeed * dt;
         break;
     }
-}
-
-void Camera::handleMouse(v2 delta)
-{
-    (void)delta;
+    this->setDirections();
 }

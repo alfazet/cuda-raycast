@@ -8,29 +8,6 @@ void framebufferSizeCallback(GLFWwindow* window, int new_width, int new_height)
     app.height = new_height;
 }
 
-void cursorPosCallback(GLFWwindow* window, double posX, double posY)
-{
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
-    {
-        return;
-    }
-    App& app = *static_cast<App*>(glfwGetWindowUserPointer(window));
-    if (app.m_justSpawned)
-    {
-        app.m_mouseX = posX;
-        app.m_mouseY = posY;
-        app.m_justSpawned = false;
-    }
-    else
-    {
-        double dx = posX - app.m_mouseX;
-        double dy = app.m_mouseY - posY;
-        app.m_mouseX = posX;
-        app.m_mouseY = posY;
-        app.handleMouse(glm::vec2(dx, dy));
-    }
-}
-
 void initBuffers(uint& vao, uint& vbo, uint& vboTex, uint& ebo)
 {
     glGenVertexArrays(1, &vao);
@@ -87,7 +64,7 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
 }
 
 App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
-             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_mouseX{width / 2.0f}, m_mouseY{height / 2.0f}, m_dt{0}
+             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_dt{0}
 {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -120,7 +97,6 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
 
     glfwSetWindowUserPointer(this->window, this);
     glfwSetFramebufferSizeCallback(this->window, framebufferSizeCallback);
-    glfwSetCursorPosCallback(this->window, cursorPosCallback);
 
     std::string vert_shader_path = std::string(PROJECT_DIR) + "/shaders/shader.vert";
     std::string frag_shader_path = std::string(PROJECT_DIR) + "/shaders/shader.frag";
@@ -234,9 +210,4 @@ void App::handleKeys()
             break;
         }
     }
-}
-
-void App::handleMouse(v2 delta)
-{
-    // this->renderer->handleMouse(delta);
 }

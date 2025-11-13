@@ -32,15 +32,12 @@ public:
 
     void handleKeys();
 
-    void handleMouse(v2 delta);
-
     void renderImguiFrame(int fps);
 
     friend void cursorPosCallback(GLFWwindow* window, double posX, double posY);
 
 private:
-    float m_mouseX, m_mouseY, m_dt;
-    bool m_justSpawned = true;
+    float m_dt;
     uint m_vao, m_vbo, m_vboTex, m_pbo, m_tex, m_ebo;
 };
 

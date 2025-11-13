@@ -32,6 +32,7 @@ typedef glm::vec4 v4;
 typedef glm::mat2 m2;
 typedef glm::mat3 m3;
 typedef glm::mat4 m4;
+typedef glm::quat quat;
 
 constexpr dim3 CUDA_BLOCK_DIM = dim3(32, 32, 1);
 

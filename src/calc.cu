@@ -2,7 +2,7 @@
 
 namespace calc
 {
-__device__ float triangleIntersection(const v3& origin, const v3& dir, const Triangle& triangle)
+__device__ __host__ float triangleIntersection(const v3& origin, const v3& dir, const Triangle& triangle)
 {
     v3 e1 = triangle.b - triangle.a;
     v3 e2 = triangle.c - triangle.a;

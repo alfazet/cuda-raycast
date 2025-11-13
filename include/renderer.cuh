@@ -8,7 +8,7 @@
 class Renderer
 {
 public:
-    Camera* camera;
+    Camera camera;
 
     Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces);
 
@@ -18,14 +18,11 @@ public:
 
     void handleKey(int key, float dt);
 
-    void handleMouse(v2 delta);
-
 private:
     cudaGraphicsResource* m_pboRes{};
     int m_width, m_height, m_nFaces;
     void* m_dTexBuf; // d -> stored on the device
     Triangle* m_dFaces;
-    Triangle* m_dFacesOriginal;
     dim3 m_blockDim, m_gridDim;
 };
 
