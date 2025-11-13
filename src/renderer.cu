@@ -15,7 +15,6 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
 
     int hitIdx = -1;
     float minT = FLT_MAX; // for depth-buffering
-    texBuf[ty * width + tx] = uchar3(0, 0, 0);
     for (int i = 0; i < nFaces; i++)
     {
         float t = calc::triangleIntersection(camera.pos, rayDir, faces[i]);
@@ -29,23 +28,31 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     switch (hitIdx)
     {
     case 0:
+    case 1:
         texBuf[ty * width + tx] = uchar3(255, 0, 0);
         break;
-    case 1:
-        texBuf[ty * width + tx] = uchar3(0, 255, 0);
-        break;
     case 2:
-        texBuf[ty * width + tx] = uchar3(0, 0, 255);
-        break;
     case 3:
-        texBuf[ty * width + tx] = uchar3(128, 0, 128);
+        texBuf[ty * width + tx] = uchar3(0, 0, 255);
         break;
     case 4:
     case 5:
+        texBuf[ty * width + tx] = uchar3(128, 0, 128);
+        break;
+    case 6:
+    case 7:
+        texBuf[ty * width + tx] = uchar3(128, 128, 0);
+        break;
+    case 8:
+    case 9:
         texBuf[ty * width + tx] = uchar3(0, 128, 128);
         break;
+    case 10:
+    case 11:
+        texBuf[ty * width + tx] = uchar3(0, 255, 0);
+        break;
     default:
-        texBuf[ty * width + tx] = uchar3(128, 128, 128);
+        texBuf[ty * width + tx] = uchar3(0, 0, 0);
     }
 }
 

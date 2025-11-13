@@ -5,15 +5,10 @@
 
 constexpr float EPS = std::numeric_limits<float>::epsilon();
 
-// triangle a-b-c, with normals na, nb and nc
-// in those points and texture coords u{a, b, c}, v{a, b, c}
-// whenever we register that a ray hit this triangle,
-// we find the bary coordinates of that point
-// and interpolate the normals based on them
+// triangle a-b-c, with normals na, nb and nc in those points
 struct Triangle
 {
     v3 a, b, c;
-    v2 uva, uvb, uvc;
     v3 na, nb, nc;
 };
 

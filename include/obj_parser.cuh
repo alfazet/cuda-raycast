@@ -8,9 +8,8 @@
 // supports the following types of entries:
 // - comments (beginning with a `#`)
 // - v x y z (vertex)
-// - vt u v (texture coordinate)
 // - vn x y z (normal)
-// - f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3
+// - f v1/vn1 v2/vn2 v3/vn3
 // - color r g b (values 0-255, the color of the object)
 // - texture texture_path (if a texture is used, the color is ignored)
 // - ks k_s (specular reflection coeff)
@@ -22,7 +21,6 @@ class ObjParser
 {
 public:
     std::vector<v3> vertices;
-    std::vector<v2> texVertices;
     std::vector<v3> normals;
     std::vector<Triangle> faces;
 
@@ -30,8 +28,6 @@ public:
 
 private:
     static v3 parseVertex(const std::string& data);
-
-    static v2 parseTexture(const std::string& data);
 
     static v3 parseNormal(const std::string& data);
 

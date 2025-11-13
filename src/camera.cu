@@ -20,10 +20,10 @@ void Camera::handleKey(int key, float dt)
     switch (key)
     {
     case GLFW_KEY_W:
-        this->pos += this->up * this->m_speed * dt;
+        this->pos += this->forward * this->m_speed * dt;
         break;
     case GLFW_KEY_S:
-        this->pos -= this->up * this->m_speed * dt;
+        this->pos -= this->forward * this->m_speed * dt;
         break;
     case GLFW_KEY_A:
         this->pos -= this->right * this->m_speed * dt;
@@ -32,10 +32,10 @@ void Camera::handleKey(int key, float dt)
         this->pos += this->right * this->m_speed * dt;
         break;
     case GLFW_KEY_Q:
-        this->pos -= this->forward * this->m_speed * dt;
+        this->pos -= this->up * this->m_speed * dt;
         break;
     case GLFW_KEY_E:
-        this->pos += this->forward * this->m_speed * dt;
+        this->pos += this->up * this->m_speed * dt;
         break;
     case GLFW_KEY_UP:
         this->pitch += this->m_rotSpeed * dt;
