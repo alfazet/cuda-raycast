@@ -2,10 +2,11 @@
 
 namespace calc
 {
-__device__ __host__ float triangleIntersection(const v3& origin, const v3& dir, const Triangle& triangle)
+__device__ __host__ float triangleIntersection(const v3& origin, const v3& dir, const Triangle& triangle, v3& normal)
 {
     v3 e1 = triangle.b - triangle.a;
     v3 e2 = triangle.c - triangle.a;
+    normal = glm::cross(e1, e2);
     v3 dir_e2_cross = glm::cross(dir, e2);
     float det = glm::dot(e1, dir_e2_cross);
     if (abs(det) < EPS)
@@ -30,28 +31,17 @@ __device__ __host__ float triangleIntersection(const v3& origin, const v3& dir, 
     return t > EPS ? t : 0.0f;
 }
 
-__device__ __host__ float3 barycentric(const v3& p, const Triangle& tri)
-{
-    v3 a = tri.a, b = tri.b, c = tri.c;
-    float detInv = 1.0f / ((a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y));
-    v2 res = detInv * m2(b.y - c.y, c.x - b.x, c.y - a.y, a.x - c.x) * v2(p.x - c.x, p.y - c.y);
-
-    return float3(res.x, res.y, 1 - res.x - res.y);
-}
-
 __device__ __host__ v3 normalAt(const v3& p, const Triangle& tri)
 {
-    float3 bary = barycentric(p, tri);
-    v3 normal = glm::normalize(bary.x * tri.na + bary.y * tri.nb + bary.z * tri.nc);
-
+    v3 normal = glm::normalize(0.33f * (tri.na + tri.nb + tri.nc));
     return normal;
 }
 
 __device__ __host__ uchar3 colorBytes(float3 color)
 {
-    unsigned char r = static_cast<unsigned char>(255.0 * color.x);
-    unsigned char g = static_cast<unsigned char>(255.0 * color.y);
-    unsigned char b = static_cast<unsigned char>(255.0 * color.z);
+    unsigned char r = static_cast<unsigned char>(255.0 * min(color.x, 1.0f));
+    unsigned char g = static_cast<unsigned char>(255.0 * min(color.y, 1.0f));
+    unsigned char b = static_cast<unsigned char>(255.0 * min(color.z, 1.0f));
 
     return uchar3(r, g, b);
 }

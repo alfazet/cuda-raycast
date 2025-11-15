@@ -29,6 +29,27 @@ Triangle ObjParser::parseFace(const std::string& data)
     std::string s;
     int va, vb, vc, vna, vnb, vnc;
 
+    if (this->normals.empty())
+    {
+        // normals not defined
+        std::getline(fa, s, ' ');
+        va = std::stoi(s);
+        std::getline(fb, s, ' ');
+        vb = std::stoi(s);
+        std::getline(fc, s, ' ');
+        vc = std::stoi(s);
+
+        return Triangle{
+            .a = this->vertices[va - 1],
+            .b = this->vertices[vb - 1],
+            .c = this->vertices[vc - 1],
+            .na = v3(0.0f, 0.0f, 0.0f),
+            .nb = v3(0.0f, 0.0f, 0.0f),
+            .nc = v3(0.0f, 0.0f, 0.0f),
+            .normalsDefined = false,
+        };
+    }
+
     std::getline(fa, s, '/');
     va = std::stoi(s);
     std::getline(fa, s, ' ');
@@ -51,6 +72,7 @@ Triangle ObjParser::parseFace(const std::string& data)
         .na = this->normals[vna - 1],
         .nb = this->normals[vnb - 1],
         .nc = this->normals[vnc - 1],
+        .normalsDefined = true,
     };
 }
 

@@ -15,37 +15,54 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     v3 rayDir = glm::normalize(m3(camera.right, camera.up, camera.forward) * v3(x, y, 1.0f));
 
     int hitIdx = -1;
-    float minT = FLT_MAX; // for depth-buffering
+    float minDist = FLT_MAX; // for depth-buffering
+    v3 hitPoint, hitFaceNormal;
     for (int i = 0; i < nFaces; i++)
     {
-        float t = calc::triangleIntersection(camera.pos, rayDir, faces[i]);
-        if (t > 0.0 && t < minT)
+        v3 maybeNormal;
+        float t = calc::triangleIntersection(camera.pos, rayDir, faces[i], maybeNormal);
+        if (t > 0.0)
         {
-            minT = t;
-            hitIdx = i;
+            v3 maybeHitPoint = camera.pos + t * rayDir;
+            float maybeDist = glm::distance2(camera.pos, maybeHitPoint);
+            if (maybeDist < minDist)
+            {
+                hitPoint = maybeHitPoint;
+                minDist = maybeDist;
+                hitIdx = i;
+                hitFaceNormal = maybeNormal;
+            }
         }
     }
     if (hitIdx == -1)
     {
-        texBuf[ty * width + tx] = uchar3(0, 0, 0);
+        texBuf[ty * width + tx] = uchar3(128, 128, 128);
         return;
     }
 
-    v3 hitPoint = camera.pos + minT * rayDir;
-    v3 normal = calc::normalAt(hitPoint, faces[hitIdx]);
+    v3 normal;
+    if (faces[hitIdx].normalsDefined)
+    {
+        normal = calc::normalAt(hitPoint, faces[hitIdx]);
+    }
+    else
+    {
+        normal = hitFaceNormal;
+    }
     float3 color(0.0f, 0.0f, 0.0f), surfaceColor(1.0f, 1.0f, 1.0f);
-    float kd = 0.75, ks = 0.5, alpha = 3;
+    float ka = 0.5, kd = 0.75, ks = 0.5, alpha = 70;
     for (int i = 0; i < nLights; i++)
     {
         v3 toLight = glm::normalize(lights[i].pos - hitPoint);
-        float nlDot = max(0.0f, glm::dot(normal, toLight));
-        v3 view = glm::normalize(hitPoint - camera.pos);
+        float nlDot = max(glm::dot(normal, toLight), 0.0f);
+        v3 view = glm::normalize(camera.pos - hitPoint);
         v3 rVec = glm::normalize(2.0f * nlDot * normal - toLight);
-        float rvDot = max(0.0f, glm::dot(rVec, view));
+        float rvDot = max(glm::dot(rVec, view), 0.0f);
+        float rvDotPow = powf(rvDot, alpha);
 
-        float r = min(lights[i].color.x * surfaceColor.x * (nlDot * kd + rvDot * ks), 1.0f);
-        float g = min(lights[i].color.y * surfaceColor.y * (nlDot * kd + rvDot * ks), 1.0f);
-        float b = min(lights[i].color.z * surfaceColor.z * (nlDot * kd + rvDot * ks), 1.0f);
+        float r = min(lights[i].color.x * surfaceColor.x * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
+        float g = min(lights[i].color.y * surfaceColor.y * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
+        float b = min(lights[i].color.z * surfaceColor.z * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
         color.x += r;
         color.y += g;
         color.z += b;
@@ -60,7 +77,7 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
 {
     this->m_gridDim = dim3((this->m_width + this->m_blockDim.x - 1) / this->m_blockDim.x,
                            (this->m_height + this->m_blockDim.y - 1) / this->m_blockDim.y, 1);
-    this->camera = Camera(v3(0.0f, 0.0f, 5.0f), 0.0f, 0.0f, M_PI_2);
+    this->camera = Camera(v3(0.0f, 0.0f, 0.0f), 0.0f, 0.0f, M_PI_2);
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
     cudaErrCheck(cudaMalloc(&this->m_dFaces, this->m_nFaces * sizeof(Triangle)));
@@ -74,6 +91,7 @@ Renderer::~Renderer()
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
     cudaErrCheck(cudaFree(this->m_dTexBuf));
     cudaErrCheck(cudaFree(this->m_dFaces));
+    cudaErrCheck(cudaFree(this->m_dLights));
 }
 
 void Renderer::render()

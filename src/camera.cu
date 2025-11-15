@@ -49,6 +49,11 @@ void Camera::handleKey(int key, float dt)
     case GLFW_KEY_RIGHT:
         this->yaw -= this->m_rotSpeed * dt;
         break;
+    case GLFW_KEY_0:
+        this->pitch = 0.0f;
+        this->yaw = 0.0f;
+        this->pos = v3(0.0f, 0.0f, 0.0f);
+        break;
     }
     this->setDirections();
 }
