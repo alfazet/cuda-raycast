@@ -11,7 +11,6 @@
 // - vn x y z (normal)
 // - f v1/vn1 v2/vn2 v3/vn3
 // - color r g b (values 0-255, the color of the object)
-// - texture texture_path (if a texture is used, the color is ignored)
 // - ks k_s (specular reflection coeff)
 // - kd k_d (diffuse reflection coeff)
 // - ka k_a (ambient reflection coeff)

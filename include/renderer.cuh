@@ -4,13 +4,14 @@
 #include "calc.cuh"
 #include "camera.cuh"
 #include "common.cuh"
+#include "light.cuh"
 
 class Renderer
 {
 public:
     Camera camera;
 
-    Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces);
+    Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Light>& lights);
 
     ~Renderer();
 
@@ -20,9 +21,10 @@ public:
 
 private:
     cudaGraphicsResource* m_pboRes{};
-    int m_width, m_height, m_nFaces;
+    int m_width, m_height, m_nFaces, m_nLights;
     void* m_dTexBuf; // d -> stored on the device
     Triangle* m_dFaces;
+    Light* m_dLights;
     dim3 m_blockDim, m_gridDim;
 };
 

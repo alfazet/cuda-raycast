@@ -27,7 +27,7 @@ Triangle ObjParser::parseFace(const std::string& data)
     ss >> a >> b >> c;
     std::stringstream fa(a), fb(b), fc(c);
     std::string s;
-    int va, vb, vc, vta, vtb, vtc, vna, vnb, vnc;
+    int va, vb, vc, vna, vnb, vnc;
 
     std::getline(fa, s, '/');
     va = std::stoi(s);

@@ -109,7 +109,13 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
     ObjParser parser;
     // TODO: get file name from cli args
     parser.parseFile("../test.obj");
-    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces);
+    // TODO: get lights from the file
+    std::vector<Light> lights;
+    lights.emplace_back(v3(-100.0, -100.0, 200.0), v3(1.0, 0.0, 0.0));
+    lights.emplace_back(v3(100.0, -100.0, 200.0), v3(0.0, 0.0, 1.0));
+    lights.emplace_back(v3(100.0, 100.0, 200.0), v3(1.0, 0.0, 0.0));
+    lights.emplace_back(v3(-100.0, 100.0, 200.0), v3(0.0, 0.0, 1.0));
+    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces, lights);
     glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));
