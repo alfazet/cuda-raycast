@@ -58,10 +58,6 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
         float3 rVec = normalize(2.0f * nlDot * normal - toLight);
         float rvDot = max(dot(rVec, view), 0.0f);
         float rvDotPow = powf(rvDot, alpha);
-
-        // resColor.x += lights[i].color.x * surfaceColor.x * (nlDot * kD + rvDotPow * kS);
-        // resColor.y += lights[i].color.y * surfaceColor.y * (nlDot * kD + rvDotPow * kS);
-        // resColor.z += lights[i].color.z * surfaceColor.z * (nlDot * kD + rvDotPow * kS);
         resColor += lights[i].color * surfaceColor * (nlDot * kD + rvDotPow * kS);
     }
     float ambientI = min(0.25f * nLights, 1.0f);

@@ -9,10 +9,10 @@
 class App
 {
 public:
-    constexpr static int DEFAULT_WIN_WIDTH = 512;
-    constexpr static int DEFAULT_WIN_HEIGHT = 288;
-    constexpr static int DEFAULT_TEXTURE_WIDTH = 512;
-    constexpr static int DEFAULT_TEXTURE_HEIGHT = 288;
+    constexpr static int DEFAULT_WIN_WIDTH = 256;
+    constexpr static int DEFAULT_WIN_HEIGHT = 144;
+    constexpr static int DEFAULT_TEXTURE_WIDTH = 256;
+    constexpr static int DEFAULT_TEXTURE_HEIGHT = 144;
     constexpr static int BOUND_KEYS[11] = {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D, GLFW_KEY_E, GLFW_KEY_Q,
                                            GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT, GLFW_KEY_0};
 
