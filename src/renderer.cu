@@ -49,8 +49,8 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     {
         normal = hitFaceNormal;
     }
-    float3 color(0.0f, 0.0f, 0.0f), surfaceColor(1.0f, 1.0f, 1.0f);
-    float ka = 0.5, kd = 0.75, ks = 0.5, alpha = 70;
+    float3 resColor(0.0f, 0.0f, 0.0f), surfaceColor(1.0f, 0.0f, 0.0f);
+    float ka = 0.8, kd = 0.8, ks = 0.75, alpha = 3;
     for (int i = 0; i < nLights; i++)
     {
         v3 toLight = glm::normalize(lights[i].pos - hitPoint);
@@ -60,14 +60,18 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
         float rvDot = max(glm::dot(rVec, view), 0.0f);
         float rvDotPow = powf(rvDot, alpha);
 
-        float r = min(lights[i].color.x * surfaceColor.x * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
-        float g = min(lights[i].color.y * surfaceColor.y * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
-        float b = min(lights[i].color.z * surfaceColor.z * (ka + nlDot * kd + rvDotPow * ks), 1.0f);
-        color.x += r;
-        color.y += g;
-        color.z += b;
+        float r = min(lights[i].color.x * surfaceColor.x * (nlDot * kd + rvDotPow * ks), 1.0f);
+        float g = min(lights[i].color.y * surfaceColor.y * (nlDot * kd + rvDotPow * ks), 1.0f);
+        float b = min(lights[i].color.z * surfaceColor.z * (nlDot * kd + rvDotPow * ks), 1.0f);
+        resColor.x += r;
+        resColor.y += g;
+        resColor.z += b;
     }
-    texBuf[ty * width + tx] = calc::colorBytes(color);
+    float ambientI = min(0.1f * nLights, 1.0f);
+    resColor.x += surfaceColor.x * ambientI * ka;
+    resColor.y += surfaceColor.y * ambientI * ka;
+    resColor.z += surfaceColor.z * ambientI * ka;
+    texBuf[ty * width + tx] = calc::colorFloatsToBytes(resColor);
 }
 
 Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces,
@@ -77,7 +81,7 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
 {
     this->m_gridDim = dim3((this->m_width + this->m_blockDim.x - 1) / this->m_blockDim.x,
                            (this->m_height + this->m_blockDim.y - 1) / this->m_blockDim.y, 1);
-    this->camera = Camera(v3(0.0f, 0.0f, 0.0f), 0.0f, 0.0f, M_PI_2);
+    this->camera = Camera(M_PI_2);
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
     cudaErrCheck(cudaMalloc(&this->m_dFaces, this->m_nFaces * sizeof(Triangle)));

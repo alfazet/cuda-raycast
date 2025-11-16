@@ -37,7 +37,7 @@ __device__ __host__ v3 normalAt(const v3& p, const Triangle& tri)
     return normal;
 }
 
-__device__ __host__ uchar3 colorBytes(float3 color)
+__device__ __host__ uchar3 colorFloatsToBytes(float3 color)
 {
     unsigned char r = static_cast<unsigned char>(255.0 * min(color.x, 1.0f));
     unsigned char g = static_cast<unsigned char>(255.0 * min(color.y, 1.0f));

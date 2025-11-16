@@ -27,7 +27,7 @@ __device__ __host__ float3 barycentric(const v3& p, const Triangle& tri);
 
 __device__ __host__ v3 normalAt(const v3& p, const Triangle& tri);
 
-__device__ __host__ uchar3 colorBytes(float3 color);
+__device__ __host__ uchar3 colorFloatsToBytes(float3 color);
 }
 
 #endif //CUDA_RAYCAST_CALC_CUH

@@ -1,6 +1,6 @@
 #include "camera.cuh"
 
-Camera::Camera(v3 pos, float pitch, float yaw, float fov) : pos{pos}, pitch{pitch}, yaw{yaw}, fov{fov}
+Camera::Camera(float fov) : pos{cameraOrigin}, pitch{0.0f}, yaw{0.0f}, fov{fov}
 {
     this->m_speed = 2.0f;
     this->m_rotSpeed = 1.0f;
@@ -9,9 +9,9 @@ Camera::Camera(v3 pos, float pitch, float yaw, float fov) : pos{pos}, pitch{pitc
 
 void Camera::setDirections()
 {
-    this->forward = glm::normalize(v3(-sinf(this->yaw) * cosf(this->pitch), sinf(this->pitch),
-                                      -cosf(this->yaw) * cosf(this->pitch)));
-    this->right = glm::normalize(v3(cosf(this->yaw), 0.0f, -sinf(this->yaw)));
+    quat orientation = quat(v3(this->pitch, this->yaw, 0.0f));
+    this->forward = glm::normalize(orientation * worldForward);
+    this->right = glm::normalize(glm::cross(this->forward, worldUp));
     this->up = glm::normalize(glm::cross(this->right, this->forward));
 }
 
@@ -52,7 +52,7 @@ void Camera::handleKey(int key, float dt)
     case GLFW_KEY_0:
         this->pitch = 0.0f;
         this->yaw = 0.0f;
-        this->pos = v3(0.0f, 0.0f, 0.0f);
+        this->pos = cameraOrigin;
         break;
     }
     this->setDirections();
