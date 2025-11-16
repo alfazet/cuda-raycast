@@ -1,25 +1,5 @@
-#ifndef CUDA_RAYCAST_CALC_CUH
-#define CUDA_RAYCAST_CALC_CUH
+#include "calc.cuh"
 
-#include "common.cuh"
-
-constexpr float EPS = std::numeric_limits<float>::epsilon();
-
-struct Normals
-{
-    float3 na, nb, nc;
-};
-
-// triangle a-b-c, with normals na, nb and nc in those points
-struct Triangle
-{
-    float3 a, b, c;
-};
-
-// return t such that P = origin + t * ray_dir is the point where the ray from origin along ray_dir
-// intersects the given triangle
-// if there's no intersection, return 0
-// (implements the Möller-Trumbore algorithm)
 inline __device__ __host__ float triangleIntersection(float3 origin, float3 dir, Triangle* triangle, float3* normal)
 {
     float3 e1 = triangle->b - triangle->a;
@@ -57,5 +37,3 @@ inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
 
     return make_uchar3(r, g, b);
 }
-
-#endif //CUDA_RAYCAST_CALC_CUH

@@ -63,9 +63,13 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
-             texHeight{DEFAULT_TEXTURE_HEIGHT}, m_dt{0}
+App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
+                                  texHeight{DEFAULT_TEXTURE_HEIGHT}, m_dt{0}
 {
+    if (argc < 2)
+    {
+        ERR_AND_DIE("missing required argument: <.obj file path>");
+    }
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -107,13 +111,9 @@ App::App() : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFA
     initTexture(this->m_tex, this->m_pbo, this->texWidth, this->texHeight);
 
     ObjParser parser;
-    // TODO: get file name from cli args
-    parser.parseFile("../test3.obj");
-    // TODO: get lights from the file
-    std::vector<Light> lights;
-    lights.emplace_back(v3(0.0, 0.0, 3.0), v3(1.0, 1.0, 1.0));
-    lights.emplace_back(v3(0.0, 0.0, -3.0), v3(1.0, 1.0, 1.0));
-    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces, lights);
+    parser.parseFile(argv[1]);
+    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces, parser.orderedNormals,
+                                  parser.lights, parser.color, parser.kD, parser.kS, parser.kA, parser.alpha);
     glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));

@@ -5,8 +5,8 @@
 
 struct Light
 {
-    v3 pos;
-    v3 color;
+    float3 pos;
+    float3 color;
 };
 
 #endif //CUDA_RAYCAST_LIGHT_CUH

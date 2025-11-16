@@ -22,7 +22,7 @@ public:
     Shader* shader;
     Renderer* renderer;
 
-    App();
+    App(int argc, char** argv);
 
     ~App();
 

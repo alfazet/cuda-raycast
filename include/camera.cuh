@@ -14,7 +14,7 @@ public:
 
     Camera() = default;
 
-    Camera(float fov);
+    explicit Camera(float fov);
 
     void handleKey(int key, float dt);
 

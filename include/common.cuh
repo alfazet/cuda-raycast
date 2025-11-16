@@ -26,6 +26,8 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
+#include "utils.cuh"
+
 typedef glm::vec2 v2;
 typedef glm::vec3 v3;
 typedef glm::vec4 v4;

@@ -1,26 +1,37 @@
 #include "obj_parser.cuh"
 
-v3 ObjParser::parseVertex(const std::string& data)
+float3 ObjParser::parseVertex(const std::string& data) const
 {
     std::stringstream ss(data);
     float x, y, z;
     ss >> x >> y >> z;
 
-    return {x, y, z};
+    return make_float3(x, y, z);
 }
 
-v3 ObjParser::parseNormal(const std::string& data)
+float3 ObjParser::parseNormal(const std::string& data) const
 {
     std::stringstream ss(data);
     float x, y, z;
     ss >> x >> y >> z;
-    v3 v(x, y, z);
-    v = normalize(v);
 
-    return v;
+    return normalize(make_float3(x, y, z));
 }
 
-Triangle ObjParser::parseFace(const std::string& data)
+Triangle ObjParser::parseFace(const std::string& data) const
+{
+    std::stringstream ss(data);
+    int va, vb, vc;
+    ss >> va >> vb >> vc;
+
+    return Triangle{
+        .a = this->vertices[va - 1],
+        .b = this->vertices[vb - 1],
+        .c = this->vertices[vc - 1],
+    };
+}
+
+std::tuple<Triangle, Normals> ObjParser::parseFaceWithNormals(const std::string& data) const
 {
     std::stringstream ss(data);
     std::string a, b, c;
@@ -28,27 +39,6 @@ Triangle ObjParser::parseFace(const std::string& data)
     std::stringstream fa(a), fb(b), fc(c);
     std::string s;
     int va, vb, vc, vna, vnb, vnc;
-
-    if (this->normals.empty())
-    {
-        // normals not defined
-        std::getline(fa, s, ' ');
-        va = std::stoi(s);
-        std::getline(fb, s, ' ');
-        vb = std::stoi(s);
-        std::getline(fc, s, ' ');
-        vc = std::stoi(s);
-
-        return Triangle{
-            .a = this->vertices[va - 1],
-            .b = this->vertices[vb - 1],
-            .c = this->vertices[vc - 1],
-            .na = v3(0.0f, 0.0f, 0.0f),
-            .nb = v3(0.0f, 0.0f, 0.0f),
-            .nc = v3(0.0f, 0.0f, 0.0f),
-            .normalsDefined = false,
-        };
-    }
 
     std::getline(fa, s, '/');
     va = std::stoi(s);
@@ -65,36 +55,108 @@ Triangle ObjParser::parseFace(const std::string& data)
     std::getline(fc, s, ' ');
     vnc = std::stoi(s);
 
-    return Triangle{
+    auto triangle = Triangle{
         .a = this->vertices[va - 1],
         .b = this->vertices[vb - 1],
         .c = this->vertices[vc - 1],
+    };
+    auto normals = Normals{
         .na = this->normals[vna - 1],
         .nb = this->normals[vnb - 1],
         .nc = this->normals[vnc - 1],
-        .normalsDefined = true,
     };
+
+    return {triangle, normals};
+}
+
+Light ObjParser::parseLight(const std::string& data) const
+{
+    std::stringstream ss(data);
+    float x, y, z, r, g, b;
+    ss >> x >> y >> z >> r >> g >> b;
+
+    return Light{
+        .pos = make_float3(x, y, z),
+        .color = make_float3(r, g, b),
+    };
+}
+
+float ObjParser::parseFloat(const std::string& data) const
+{
+    std::stringstream ss(data);
+    float x;
+    ss >> x;
+
+    return x;
+}
+
+float3 ObjParser::parseColor(const std::string& data) const
+{
+    std::stringstream ss(data);
+    float r, g, b;
+    ss >> r >> g >> b;
+
+    return make_float3(r, g, b);
 }
 
 void ObjParser::parseLine(const std::string& line)
 {
-    int firstSpace = line.find(' ');
+    if (line.empty())
+    {
+        return;
+    }
+    size_t firstSpace = line.find(' ');
     if (firstSpace == std::string::npos)
     {
         firstSpace = line.length();
     }
     std::string firstToken = line.substr(0, firstSpace);
+    std::string rest = line.substr(firstSpace + 1);
     if (firstToken == "v")
     {
-        this->vertices.emplace_back(this->parseVertex(line.substr(firstSpace + 1)));
+        this->vertices.emplace_back(this->parseVertex(rest));
     }
     else if (firstToken == "vn")
     {
-        this->normals.emplace_back(this->parseNormal(line.substr(firstSpace + 1)));
+        this->normals.emplace_back(this->parseNormal(rest));
     }
     else if (firstToken == "f")
     {
-        this->faces.emplace_back(this->parseFace(line.substr(firstSpace + 1)));
+        if (this->normals.empty())
+        {
+            // obj file without normals
+            this->faces.emplace_back(this->parseFace(rest));
+        }
+        else
+        {
+            auto [triangle, normals] = this->parseFaceWithNormals(rest);
+            this->faces.push_back(triangle);
+            this->orderedNormals.push_back(normals);
+        }
+    }
+    else if (firstToken == "color")
+    {
+        this->color = this->parseColor(rest);
+    }
+    else if (firstToken == "light")
+    {
+        this->lights.push_back(this->parseLight(rest));
+    }
+    else if (firstToken == "kd")
+    {
+        this->kD = this->parseFloat(rest);
+    }
+    else if (firstToken == "ks")
+    {
+        this->kS = this->parseFloat(rest);
+    }
+    else if (firstToken == "ka")
+    {
+        this->kA = this->parseFloat(rest);
+    }
+    else if (firstToken == "alpha")
+    {
+        this->alpha = this->parseFloat(rest);
     }
 }
 
