@@ -47,7 +47,7 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     }
     else
     {
-        normal = hitFaceNormal;
+        normal = normalize(hitFaceNormal);
     }
     float3 resColor(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < nLights; i++)
@@ -59,17 +59,14 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
         float rvDot = max(dot(rVec, view), 0.0f);
         float rvDotPow = powf(rvDot, alpha);
 
-        float r = min(lights[i].color.x * surfaceColor.x * (nlDot * kD + rvDotPow * kS), 1.0f);
-        float g = min(lights[i].color.y * surfaceColor.y * (nlDot * kD + rvDotPow * kS), 1.0f);
-        float b = min(lights[i].color.z * surfaceColor.z * (nlDot * kD + rvDotPow * kS), 1.0f);
-        resColor.x += r;
-        resColor.y += g;
-        resColor.z += b;
+        // resColor.x += lights[i].color.x * surfaceColor.x * (nlDot * kD + rvDotPow * kS);
+        // resColor.y += lights[i].color.y * surfaceColor.y * (nlDot * kD + rvDotPow * kS);
+        // resColor.z += lights[i].color.z * surfaceColor.z * (nlDot * kD + rvDotPow * kS);
+        resColor += lights[i].color * surfaceColor * (nlDot * kD + rvDotPow * kS);
     }
-    float ambientI = min(0.3f * nLights, 1.0f);
-    resColor.x += surfaceColor.x * ambientI * kA;
-    resColor.y += surfaceColor.y * ambientI * kA;
-    resColor.z += surfaceColor.z * ambientI * kA;
+    float ambientI = min(0.25f * nLights, 1.0f);
+    resColor += kA * ambientI * surfaceColor;
+    resColor = clamp(resColor, ZERO, ONE);
     texBuf[ty * width + tx] = rgbFloatsToBytes(resColor);
 }
 

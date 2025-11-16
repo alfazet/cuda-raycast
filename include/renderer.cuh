@@ -6,6 +6,9 @@
 #include "common.cuh"
 #include "light.cuh"
 
+inline __device__ float3 ZERO = float3(0.0f, 0.0f, 0.0f);
+inline __device__ float3 ONE = float3(1.0f, 1.0f, 1.0f);
+
 class Renderer
 {
 public:
