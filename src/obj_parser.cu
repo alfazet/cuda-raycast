@@ -1,15 +1,16 @@
 #include "obj_parser.cuh"
 
-float3 ObjParser::parseVertex(const std::string& data) const
+float3 ObjParser::parseVertex(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
     ss >> x >> y >> z;
+    this->neighbors.emplace_back();
 
     return make_float3(x, y, z);
 }
 
-float3 ObjParser::parseNormal(const std::string& data) const
+float3 ObjParser::parseNormal(const std::string& data)
 {
     std::stringstream ss(data);
     float x, y, z;
@@ -18,20 +19,26 @@ float3 ObjParser::parseNormal(const std::string& data) const
     return normalize(make_float3(x, y, z));
 }
 
-Triangle ObjParser::parseFace(const std::string& data) const
+Triangle ObjParser::parseFace(const std::string& data)
 {
     std::stringstream ss(data);
     int va, vb, vc;
     ss >> va >> vb >> vc;
 
-    return Triangle{
+    auto triangle = Triangle{
         .a = this->vertices[va - 1],
         .b = this->vertices[vb - 1],
         .c = this->vertices[vc - 1],
     };
+    this->neighbors[va - 1].push_back(triangle);
+    this->neighbors[vb - 1].push_back(triangle);
+    this->neighbors[vc - 1].push_back(triangle);
+    this->facesIndices.emplace_back(va - 1, vb - 1, vc - 1);
+
+    return triangle;
 }
 
-std::tuple<Triangle, Normals> ObjParser::parseFaceWithNormals(const std::string& data) const
+std::tuple<Triangle, Normals> ObjParser::parseFaceWithNormals(const std::string& data)
 {
     std::stringstream ss(data);
     std::string a, b, c;
@@ -167,5 +174,30 @@ void ObjParser::parseFile(const char* path)
     while (std::getline(ss, line, '\n'))
     {
         this->parseLine(line);
+    }
+
+    // compute the vertex normals by averaging out the normals of the neighboring faces
+    if (this->normals.empty())
+    {
+        std::vector<float3> vertexNormals(this->vertices.size());
+        for (int i = 0; i < this->vertices.size(); i++)
+        {
+            float3 avgNormal = make_float3(0.0f, 0.0f, 0.0f);
+            float3 e1, e2;
+            for (auto& face : this->neighbors[i])
+            {
+                e1 = face.b - face.a;
+                e2 = face.c - face.a;
+                avgNormal += cross(e1, e2);
+            }
+            vertexNormals[i] = normalize(avgNormal / static_cast<float>(this->neighbors[i].size()));
+        }
+        for (int i = 0; i < this->faces.size(); i++)
+        {
+            uint ia = this->facesIndices[i].x;
+            uint ib = this->facesIndices[i].y;
+            uint ic = this->facesIndices[i].z;
+            this->orderedNormals.emplace_back(vertexNormals[ia], vertexNormals[ib], vertexNormals[ic]);
+        }
     }
 }

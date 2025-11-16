@@ -20,18 +20,18 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     float3 cameraPos = make_float3(camera.pos.x, camera.pos.y, camera.pos.z);
 
     int hitIdx = -1;
-    float minT = FLT_MAX; // for depth-buffering
-    float3 hitPoint, hitFaceNormal;
+    float t, minT = FLT_MAX; // for depth-buffering
+    float3 hitPoint, hitPointBary, normal;
     for (int i = 0; i < nFaces; i++)
     {
-        float3 maybeNormal;
-        float t = triangleIntersection(cameraPos, rayDir, &faces[i], &maybeNormal);
+        triangleIntersection(cameraPos, rayDir, &faces[i], &t, &hitPointBary);
         if (t > 0.0 && t < minT)
         {
             hitPoint = cameraPos + t * rayDir;
             minT = t;
             hitIdx = i;
-            hitFaceNormal = maybeNormal;
+            normal = normalize(
+                hitPointBary.x * normals[i].na + hitPointBary.y * normals[i].nb + hitPointBary.z * normals[i].nc);
         }
     }
     if (hitIdx == -1)
@@ -40,15 +40,6 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
         return;
     }
 
-    float3 normal;
-    if (normals != nullptr)
-    {
-        normal = normalize(0.33f * (normals[hitIdx].na + normals[hitIdx].nb + normals[hitIdx].nc));
-    }
-    else
-    {
-        normal = normalize(hitFaceNormal);
-    }
     float3 resColor(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < nLights; i++)
     {
@@ -82,28 +73,18 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
     cudaErrCheck(cudaMemcpy(this->m_dFaces, faces.data(), this->m_nFaces * sizeof(Triangle), cudaMemcpyHostToDevice));
     cudaErrCheck(cudaMalloc(&this->m_dLights, this->m_nLights * sizeof(Light)));
     cudaErrCheck(cudaMemcpy(this->m_dLights, lights.data(), this->m_nLights * sizeof(Light), cudaMemcpyHostToDevice));
-    if (normals.empty())
-    {
-        this->m_dNormals = nullptr;
-    }
-    else
-    {
-        cudaErrCheck(cudaMalloc(&this->m_dNormals, this->m_nFaces * sizeof(Normals)));
-        cudaErrCheck(cudaMemcpy(this->m_dNormals, normals.data(), this->m_nFaces * sizeof(Normals),
-                                cudaMemcpyHostToDevice));
-    }
+    cudaErrCheck(cudaMalloc(&this->m_dNormals, this->m_nFaces * sizeof(Normals)));
+    cudaErrCheck(cudaMemcpy(this->m_dNormals, normals.data(), this->m_nFaces * sizeof(Normals),
+                            cudaMemcpyHostToDevice));
 }
 
 Renderer::~Renderer()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
-    if (this->m_dNormals != nullptr)
-    {
-        cudaErrCheck(cudaFree(this->m_dNormals));
-    }
-    cudaErrCheck(cudaFree(this->m_dTexBuf));
-    cudaErrCheck(cudaFree(this->m_dFaces));
+    cudaErrCheck(cudaFree(this->m_dNormals));
     cudaErrCheck(cudaFree(this->m_dLights));
+    cudaErrCheck(cudaFree(this->m_dFaces));
+    cudaErrCheck(cudaFree(this->m_dTexBuf));
 }
 
 void Renderer::render()

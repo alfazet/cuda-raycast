@@ -22,22 +22,25 @@ public:
     std::vector<float3> vertices;
     std::vector<float3> normals;
     std::vector<Triangle> faces;
+    std::vector<uint3> facesIndices;
     // ordered by the faces they correspond to
     std::vector<Normals> orderedNormals;
     std::vector<Light> lights;
+    // neighbors[i] = list of faces that are neighbors of vertex i
+    std::vector<std::vector<Triangle> > neighbors;
     float3 color;
     float kD, kS, kA, alpha;
 
     void parseFile(const char* path);
 
 private:
-    float3 parseVertex(const std::string& data) const;
+    float3 parseVertex(const std::string& data);
 
-    float3 parseNormal(const std::string& data) const;
+    float3 parseNormal(const std::string& data);
 
-    Triangle parseFace(const std::string& data) const;
+    Triangle parseFace(const std::string& data);
 
-    std::tuple<Triangle, Normals> parseFaceWithNormals(const std::string& data) const;
+    std::tuple<Triangle, Normals> parseFaceWithNormals(const std::string& data);
 
     Light parseLight(const std::string& data) const;
 

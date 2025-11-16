@@ -2,7 +2,7 @@
 
 Camera::Camera(float fov) : pos{cameraOrigin}, pitch{0.0f}, yaw{0.0f}, fov{fov}
 {
-    this->m_speed = 60.0f;
+    this->m_speed = 2.0f;
     this->m_rotSpeed = 1.0f;
     this->setDirections();
 }

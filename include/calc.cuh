@@ -20,33 +20,34 @@ struct Triangle
 // intersects the given triangle
 // if there's no intersection, return 0
 // (implements the Möller-Trumbore algorithm)
-inline __device__ __host__ float triangleIntersection(float3 origin, float3 dir, Triangle* triangle, float3* normal)
+inline __device__ __host__ void triangleIntersection(float3 origin, float3 dir, Triangle* triangle, float* t,
+                                                     float3* bary)
 {
+    *t = 0.0f;
     float3 e1 = triangle->b - triangle->a;
     float3 e2 = triangle->c - triangle->a;
-    *normal = cross(e1, e2);
     float3 dir_e2_cross = cross(dir, e2);
     float det = dot(e1, dir_e2_cross);
     if (abs(det) < EPS)
     {
-        return 0;
+        return;
     }
     float inv_det = 1.0f / det;
     float3 s = origin - triangle->a;
     float u = inv_det * dot(s, dir_e2_cross);
-    if ((u < 0 && abs(u) > EPS) || (u > 1 && abs(u - 1) > EPS))
+    if (u < 0.0f || u > 1.0f)
     {
-        return 0;
+        return;
     }
     float3 s_e1_cross = cross(s, e1);
     float v = inv_det * dot(dir, s_e1_cross);
-    if ((v < 0 && abs(v) > EPS) || (u + v > 1 && abs(u + v - 1) > EPS))
+    if (v < 0 || u + v > 1.0)
     {
-        return 0;
+        return;
     }
-    float t = inv_det * dot(e2, s_e1_cross);
-
-    return t > EPS ? t : 0.0f;
+    // u and v are the barycentric coordinates of the hit point inside the triangle
+    *t = max(0.0f, inv_det * dot(e2, s_e1_cross));
+    *bary = make_float3(u, v, 1.0f - u - v);
 }
 
 inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
