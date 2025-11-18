@@ -59,4 +59,10 @@ inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
     return make_uchar3(r, g, b);
 }
 
+// matrix given as rows r1, r2, r3
+inline __device__ __host__ float3 vecMatMul3(float3 v, float3 r1, float3 r2, float3 r3)
+{
+    return make_float3(dot(v, r1), dot(v, r2), dot(v, r3));
+}
+
 #endif //CUDA_RAYCAST_CALC_CUH

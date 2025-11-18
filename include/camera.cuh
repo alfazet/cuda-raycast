@@ -6,20 +6,15 @@
 class Camera
 {
 public:
-    static constexpr v3 worldForward = v3(0.0f, 0.0f, -1.0f);
-    static constexpr v3 worldUp = v3(0.0f, 1.0f, 0.0f);
-    static constexpr v3 cameraOrigin = v3(0.0f, 0.0f, 5.0f);
-    float pitch, yaw, fov;
-    v3 pos, forward, right, up;
+    static constexpr float3 cameraOrigin = float3(0.0f, 0.0f, 5.0f);
+    float3 pos, forwardDir = float3(0.0f, 0.0f, -1.0f);
 
-    Camera() = default;
-
-    explicit Camera(float fov);
+    Camera();
 
     void handleKey(int key, float dt);
 
 private:
-    float m_speed, m_rotSpeed;
+    float m_speed;
 
     void setDirections();
 };

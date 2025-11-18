@@ -12,7 +12,7 @@ inline __device__ float3 ONE = float3(1.0f, 1.0f, 1.0f);
 class Renderer
 {
 public:
-    Camera camera;
+    Camera camera = Camera();
 
     Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
              std::vector<Light>& lights,
@@ -28,11 +28,11 @@ private:
     cudaGraphicsResource* m_pboRes{};
     int m_width, m_height, m_nFaces, m_nLights;
     void* m_dTexBuf; // d -> stored on the device
-    float m_kD, m_kS, m_kA, m_alpha;
-    float3 m_color;
-    Triangle* m_dFaces;
-    Light* m_dLights;
-    Normals* m_dNormals;
+    float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.1f;
+    float3 m_color, m_angles = ZERO; // angles = (yaw, pitch, roll)
+    Triangle *m_dFaces, *m_dOriginalFaces;
+    Light *m_dLights, *m_dOriginalLights;
+    Normals *m_dNormals, *m_dOriginalNormals;
     dim3 m_blockDim, m_gridDim;
 };
 
