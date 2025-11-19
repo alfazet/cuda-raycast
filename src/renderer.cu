@@ -1,8 +1,13 @@
 #include "renderer.cuh"
 
-__global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces, int nFaces, Light* lights,
-                              int nLights, Normals* normals, float3 surfaceColor, float kD, float kS, float kA,
-                              float alpha, float3 baseCameraPos, float3 rayDir)
+// N - max. number of faces that rays fired from one block of pixels (threads) can reach
+template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces,
+                                               int nFaces,
+                                               Light* lights,
+                                               int nLights, Normals* normals, float3 surfaceColor, float kD,
+                                               float kS,
+                                               float kA,
+                                               float alpha, float3 baseCameraPos, float3 rayDir)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     int ty = blockIdx.y * blockDim.y + threadIdx.y;
@@ -10,6 +15,22 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     {
         return;
     }
+    int blockSize = blockDim.x * blockDim.y * blockDim.z;
+    __shared__ Triangle* reachableFaces[N]; // stores the faces that this block of threads can reach
+    // we're firing rays parallel to the z-axis, so if a triangle is fully outside the bounding box
+    // of these blocks' rays, then it's for sure not reachable
+    __shared__ Normals* reachableNormals[N]; // stores the normals of those faces
+
+    // loop over triangles/normals
+    // the i-th thread is responsible for checking if i-th, (i + blockSize)-th, ... triangles are reachable
+    // MAKE THEM SOA
+    int reachableIdx = 0;
+    for (int i = 0; i < nFaces; i += blockSize)
+    {
+        // check the bounding box
+        // if OK, add to reachableFaces and reachableIdx++
+    }
+
     float aspect_ratio = width / static_cast<float>(height);
     float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
     float y = (2.0f * (ty / static_cast<float>(height)) - 1.0f);
@@ -32,11 +53,11 @@ __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* f
     }
     if (hitIdx == -1)
     {
-        texBuf[ty * width + tx] = uchar3(128, 128, 128);
+        texBuf[ty * width + tx] = BKG_COLOR;
         return;
     }
 
-    float3 resColor(0.0f, 0.0f, 0.0f);
+    float3 resColor = ZERO;
     for (int i = 0; i < nLights; i++)
     {
         float3 toLight = normalize(lights[i].pos - hitPoint);
@@ -120,13 +141,10 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
                    float alpha) : m_width{width}, m_height{height},
                                   m_nFaces{static_cast<int>(faces.size())},
                                   m_nLights{static_cast<int>(lights.size())}, m_kD{kD},
-                                  m_kS{kS}, m_kA{kA}, m_alpha{alpha}, m_color{color}, m_blockDim{CUDA_BLOCK_DIM}
+                                  m_kS{kS}, m_kA{kA}, m_alpha{alpha}, m_color{color}
 {
-    this->m_gridDim = dim3((this->m_width + this->m_blockDim.x - 1) / this->m_blockDim.x,
-                           (this->m_height + this->m_blockDim.y - 1) / this->m_blockDim.y, 1);
-
-    // TODO: make faces, normals and lights SoA
-
+    this->m_gridDim = dim3((this->m_width + CUDA_BLOCK_DIM.x - 1) / CUDA_BLOCK_DIM.x,
+                           (this->m_height + CUDA_BLOCK_DIM.y - 1) / CUDA_BLOCK_DIM.y, 1);
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
 
@@ -166,19 +184,21 @@ void Renderer::render()
 {
     cudaErrCheck(cudaGraphicsMapResources(1, &this->m_pboRes));
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_dTexBuf, nullptr, this->m_pboRes));
-    objectTransformationKernel<<<this->m_gridDim, this->m_blockDim>>>(this->m_dOriginalFaces, this->m_dFaces,
-                                                                      this->m_dOriginalNormals, this->m_dNormals,
-                                                                      this->m_nFaces,
-                                                                      this->m_angles, this->m_scale);
-    lightRotationKernel<<<this->m_gridDim, this->m_blockDim>>>(this->m_dOriginalLights, this->m_dLights,
-                                                               this->m_nLights, this->m_lightAngle);
+    objectTransformationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalFaces, this->m_dFaces,
+                                                                    this->m_dOriginalNormals, this->m_dNormals,
+                                                                    this->m_nFaces,
+                                                                    this->m_angles, this->m_scale);
+    lightRotationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalLights, this->m_dLights,
+                                                             this->m_nLights, this->m_lightAngle);
     // TODO: sort faces by (x, y) so that we can consider only relevant triangles in a block by moving them to shmem
-    shadingKernel<<<this->m_gridDim, this->m_blockDim>>>(static_cast<uchar3*>(this->m_dTexBuf), this->m_width,
-                                                         this->m_height, this->m_dFaces, this->m_nFaces,
-                                                         this->m_dLights, this->m_nLights, this->m_dNormals,
-                                                         this->m_color, this->m_kD,
-                                                         this->m_kS, this->m_kA, this->m_alpha, this->camera.pos,
-                                                         this->camera.forwardDir);
+    shadingKernel<10><<<this->m_gridDim, CUDA_BLOCK_DIM>>>(
+        static_cast<uchar3*>(this->m_dTexBuf), this->m_width,
+        this->m_height, this->m_dFaces, this->m_nFaces,
+        this->m_dLights, this->m_nLights, this->m_dNormals,
+        this->m_color, this->m_kD,
+        this->m_kS, this->m_kA, this->m_alpha,
+        this->camera.pos,
+        this->camera.forwardDir);
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
 }
 

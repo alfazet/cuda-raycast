@@ -36,8 +36,6 @@ typedef glm::mat3 m3;
 typedef glm::mat4 m4;
 typedef glm::quat quat;
 
-constexpr dim3 CUDA_BLOCK_DIM = dim3(32, 32, 1);
-
 #define ERR_AND_DIE(reason)                                                         \
 {                                                                                   \
     std::cerr << std::format("fatal error in {}, line {}\n", __FILE__, __LINE__);   \
