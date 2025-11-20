@@ -1,6 +1,30 @@
 #include "renderer.cuh"
 
-// N - max. number of faces that rays fired from one block of pixels (threads) can reach
+// check collision with all triangles and return the smallest t (together with the corresponding bary coords)
+__device__ void triangleIntersectionMany(float3 origin, float3 dir, Triangle* faces, int nFaces, float* t, float3* bary,
+                                         int* hitIdx)
+{
+    float minT = FLT_MAX;
+    for (int i = 0; i < nFaces; i++)
+    {
+        if (faces[i].a.x == FLT_MAX)
+        {
+            continue;;
+        }
+        float tempT;
+        float3 tempBary;
+        triangleIntersection(origin, dir, &faces[i], &tempT, &tempBary);
+        if (tempT > 0.0 && tempT < minT)
+        {
+            *hitIdx = i;
+            minT = tempT;
+            *bary = tempBary;
+        }
+    }
+    *t = minT;
+}
+
+// N - block size
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces,
                                                int nFaces,
                                                Light* lights,
@@ -11,53 +35,77 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     int ty = blockIdx.y * blockDim.y + threadIdx.y;
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
+    float y = 2.0f * (ty / static_cast<float>(height)) - 1.0f;
+    float xPerBlock = 2.0f * aspect_ratio / static_cast<float>(blockDim.x);
+    float yPerBlock = 2.0f / static_cast<float>(blockDim.y);
+    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
+    // stores the faces that this block of threads can reach
+    // we're firing rays parallel to the z-axis, so if a triangle is fully outside the bounding box
+    // of these blocks' rays, then it's for sure not reachable
+    __shared__ Triangle reachableFaces[N];
+    // required to retrieve normal vectors later
+    __shared__ short realFaceIdx[N];
+
+    int hitIdx = -1, shMemIdx = threadIdx.y * blockDim.x + threadIdx.x;
+    float t, minT = FLT_MAX; // for depth-buffering
+    float3 hitPoint, hitPointBary;
+    float blockMinX = -aspect_ratio + blockIdx.x * xPerBlock, blockMinY = -1.0f + blockIdx.y * yPerBlock;
+    float blockMaxX = blockMinX + xPerBlock, blockMaxY = blockMinY + yPerBlock;
+    for (int i = 0; i < nFaces; i += N)
+    {
+        int faceIdx = i + threadIdx.y * blockDim.x + threadIdx.x, isReachable = 0;
+        if (faceIdx < nFaces)
+        {
+            isReachable = 1;
+            float3 vA = faces[faceIdx].a, vB = faces[faceIdx].b, vC = faces[faceIdx].c;
+            float minX = min(vA.x, min(vB.x, vC.x));
+            float minY = min(vA.y, min(vB.y, vC.y));
+            float maxX = max(vA.x, max(vB.x, vC.x));
+            float maxY = max(vA.y, max(vB.y, vC.y));
+            reachableFaces[shMemIdx] = faces[faceIdx];
+            realFaceIdx[shMemIdx] = static_cast<short>(faceIdx);
+            if (maxX < blockMinX || maxY < blockMinY || minX > blockMaxX || minY > blockMaxY)
+            {
+                isReachable = 0;
+                // mark as unused
+                reachableFaces[shMemIdx].a.x = FLT_MAX;
+            }
+            // if none of the triangles in this group are reachable by this block, don't do anything
+            int isAnyReachable = __syncthreads_or(isReachable);
+            // calculate the color of this thread's pixel (only considering this group of reachable faces,
+            // the final color will be determined later)
+            if (isAnyReachable && tx < width && ty < height)
+            {
+                float3 tempHitPointBary;
+                int tempHitIdx;
+                triangleIntersectionMany(cameraPos, rayDir, reachableFaces, N, &t, &tempHitPointBary, &tempHitIdx);
+                if (t > 0.0 && t < minT)
+                {
+                    hitPoint = cameraPos + t * rayDir;
+                    minT = t;
+                    hitPointBary = tempHitPointBary;
+                    hitIdx = static_cast<int>(realFaceIdx[tempHitIdx]);
+                }
+            }
+            // sync because we're using shared memory
+            __syncthreads();
+        }
+    }
     if (tx >= width || ty >= height)
     {
         return;
-    }
-    int blockSize = blockDim.x * blockDim.y * blockDim.z;
-    __shared__ Triangle* reachableFaces[N]; // stores the faces that this block of threads can reach
-    // we're firing rays parallel to the z-axis, so if a triangle is fully outside the bounding box
-    // of these blocks' rays, then it's for sure not reachable
-    __shared__ Normals* reachableNormals[N]; // stores the normals of those faces
-
-    // loop over triangles/normals
-    // the i-th thread is responsible for checking if i-th, (i + blockSize)-th, ... triangles are reachable
-    // MAKE THEM SOA
-    int reachableIdx = 0;
-    for (int i = 0; i < nFaces; i += blockSize)
-    {
-        // check the bounding box
-        // if OK, add to reachableFaces and reachableIdx++
-    }
-
-    float aspect_ratio = width / static_cast<float>(height);
-    float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
-    float y = (2.0f * (ty / static_cast<float>(height)) - 1.0f);
-    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
-
-    int hitIdx = -1;
-    float t, minT = FLT_MAX; // for depth-buffering
-    float3 hitPoint, hitPointBary, normal;
-    for (int i = 0; i < nFaces; i++)
-    {
-        triangleIntersection(cameraPos, rayDir, &faces[i], &t, &hitPointBary);
-        if (t > 0.0 && t < minT)
-        {
-            hitPoint = cameraPos + t * rayDir;
-            minT = t;
-            hitIdx = i;
-            normal = normalize(
-                hitPointBary.x * normals[i].na + hitPointBary.y * normals[i].nb + hitPointBary.z * normals[i].nc);
-        }
     }
     if (hitIdx == -1)
     {
         texBuf[ty * width + tx] = BKG_COLOR;
         return;
     }
-
     float3 resColor = ZERO;
+    float3 normal = normalize(
+        hitPointBary.x * normals[hitIdx].na + hitPointBary.y * normals[hitIdx].nb + hitPointBary.z * normals[hitIdx].
+        nc);
     for (int i = 0; i < nLights; i++)
     {
         float3 toLight = normalize(lights[i].pos - hitPoint);
@@ -190,8 +238,7 @@ void Renderer::render()
                                                                     this->m_angles, this->m_scale);
     lightRotationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalLights, this->m_dLights,
                                                              this->m_nLights, this->m_lightAngle);
-    // TODO: sort faces by (x, y) so that we can consider only relevant triangles in a block by moving them to shmem
-    shadingKernel<10><<<this->m_gridDim, CUDA_BLOCK_DIM>>>(
+    shadingKernel<CUDA_BLOCK_DIM.x * CUDA_BLOCK_DIM.y * CUDA_BLOCK_DIM.z><<<this->m_gridDim, CUDA_BLOCK_DIM>>>(
         static_cast<uchar3*>(this->m_dTexBuf), this->m_width,
         this->m_height, this->m_dFaces, this->m_nFaces,
         this->m_dLights, this->m_nLights, this->m_dNormals,
