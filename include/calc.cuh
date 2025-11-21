@@ -16,6 +16,11 @@ struct Triangle
     float3 a, b, c;
 };
 
+struct TriangleSOA
+{
+    float3 *a, *b, *c;
+};
+
 // return t such that P = origin + t * ray_dir is the point where the ray from origin along ray_dir
 // intersects the given triangle
 // if there's no intersection, return 0
