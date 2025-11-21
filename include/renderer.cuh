@@ -8,7 +8,7 @@
 
 __device__ constexpr float3 ZERO = float3(0.0f, 0.0f, 0.0f);
 __device__ constexpr float3 ONE = float3(1.0f, 1.0f, 1.0f);
-__device__ constexpr uchar3 BKG_COLOR = uchar3(128, 128, 128);
+__device__ constexpr uchar3 BKG_COLOR = uchar3(0, 0, 0);
 constexpr dim3 CUDA_BLOCK_DIM = dim3(32, 32, 1);
 
 class Renderer

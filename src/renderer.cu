@@ -1,30 +1,122 @@
 #include "renderer.cuh"
 
-// check collision with all triangles and return the smallest t (together with the corresponding bary coords)
-__device__ void triangleIntersectionMany(float3 origin, float3 dir, Triangle* faces, int nFaces, float* t, float3* bary,
-                                         int* hitIdx)
+__device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* faces, int* idxs, int nFaces,
+                                           float* minT, float3* minBary, int* hitIdx)
 {
-    float minT = FLT_MAX;
+    float t;
+    float3 bary;
     for (int i = 0; i < nFaces; i++)
     {
-        if (faces[i].a.x == FLT_MAX)
+        if (idxs[i] == -1)
         {
-            continue;;
+            continue;
         }
-        float tempT;
-        float3 tempBary;
-        triangleIntersection(origin, dir, &faces[i], &tempT, &tempBary);
-        if (tempT > 0.0 && tempT < minT)
+        triangleIntersection(origin, dir, &faces[i], &t, &bary);
+        if (t > 0.0f && t < *minT)
         {
-            *hitIdx = i;
-            minT = tempT;
-            *bary = tempBary;
+            *minT = t;
+            *minBary = bary;
+            *hitIdx = idxs[i];
         }
     }
-    *t = minT;
+}
+
+__device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, Light* lights, int nLights,
+                               float3 surfaceColor, float kD, float kS, float kA,
+                               float alpha)
+{
+    float3 resColor = ZERO;
+    for (int i = 0; i < nLights; i++)
+    {
+        float3 toLight = normalize(lights[i].pos - hitPoint);
+        float nlDot = max(dot(normal, toLight), 0.0f);
+        float3 view = normalize(cameraPos - hitPoint);
+        float3 rVec = normalize(2.0f * nlDot * normal - toLight);
+        float rvDot = max(dot(rVec, view), 0.0f);
+        float rvDotPow = powf(rvDot, alpha);
+        resColor += lights[i].color * surfaceColor * (nlDot * kD + rvDotPow * kS);
+    }
+    float ambientI = min(0.25f * nLights, 1.0f);
+    resColor += kA * ambientI * surfaceColor;
+    resColor = clamp(resColor, ZERO, ONE);
+
+    return rgbFloatsToBytes(resColor);
+}
+
+template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces, Normals* normals,
+                                               int nFaces,
+                                               Light* lights, int nLights, float3 surfaceColor, float kD, float kS,
+                                               float kA, float alpha, float3 baseCameraPos, float3 rayDir)
+{
+    int tx = blockIdx.x * blockDim.x + threadIdx.x;
+    int ty = blockIdx.y * blockDim.y + threadIdx.y;
+    int tidxInBlock = threadIdx.y * blockDim.x + threadIdx.x;
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
+    float y = 2.0f * (ty / static_cast<float>(height)) - 1.0f;
+    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
+    float xPerBlock = 2.0f * aspect_ratio / static_cast<float>(gridDim.x);
+    float yPerBlock = 2.0f / static_cast<float>(gridDim.y);
+    float blockMinX = baseCameraPos.x - aspect_ratio + blockIdx.x * xPerBlock, blockMinY =
+        baseCameraPos.y - 1.0f + blockIdx.y * yPerBlock;
+    float blockMaxX = blockMinX + xPerBlock, blockMaxY = blockMinY + yPerBlock;
+
+    float minT = FLT_MAX;
+    int hitIdx = -1;
+    float3 hitPointBary;
+    __shared__ Triangle reachableFaces[N];
+    __shared__ int reachableIdxs[N];
+    for (int i = 0; i < nFaces; i += N)
+    {
+        int faceIdx = i + tidxInBlock, isReachable = 0;
+        if (faceIdx < nFaces)
+        {
+            float3 vA = faces[faceIdx].a, vB = faces[faceIdx].b, vC = faces[faceIdx].c;
+            float minX = min(vA.x, min(vB.x, vC.x));
+            float minY = min(vA.y, min(vB.y, vC.y));
+            float maxX = max(vA.x, max(vB.x, vC.x));
+            float maxY = max(vA.y, max(vB.y, vC.y));
+            isReachable = (maxX >= blockMinX && maxY >= blockMinY && minX <= blockMaxX && minY <= blockMaxY);
+        }
+        if (isReachable)
+        {
+            reachableFaces[tidxInBlock] = faces[faceIdx];
+            reachableIdxs[tidxInBlock] = faceIdx;
+        }
+        else
+        {
+            reachableIdxs[tidxInBlock] = -1;
+        }
+        int anyReachable = __syncthreads_or(isReachable);
+        if (anyReachable && tx < width && ty < height)
+        {
+            checkTriangleIntersections(cameraPos, rayDir, reachableFaces, reachableIdxs, N, &minT, &hitPointBary,
+                                       &hitIdx);
+        }
+        __syncthreads();
+    }
+
+    if (tx >= width || ty >= height)
+    {
+        return;
+    }
+    if (hitIdx == -1)
+    {
+        texBuf[ty * width + tx] = BKG_COLOR;
+    }
+    else
+    {
+        float3 normal = normalize(
+            hitPointBary.x * normals[hitIdx].na + hitPointBary.y * normals[hitIdx].nb + hitPointBary.z * normals[hitIdx]
+            .nc);
+        float3 hitPoint = cameraPos + minT * rayDir;
+        texBuf[ty * width + tx] = computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA,
+                                               alpha);
+    }
 }
 
 // N - block size
+/*
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces,
                                                int nFaces,
                                                Light* lights,
@@ -121,9 +213,9 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     resColor = clamp(resColor, ZERO, ONE);
     texBuf[ty * width + tx] = rgbFloatsToBytes(resColor);
 }
+*/
 
-// rotates and scales all faces (together with their normals) and saves them in rotatedFaces/Normals
-// TODO: restore the up vector
+// rotates and scales all faces (together with their normals)
 __global__ void objectTransformationKernel(Triangle* originalFaces, Triangle* transFaces, Normals* originalNormals,
                                            Normals* rotatedNormals, int nFaces, float3 angles, float scale)
 {
@@ -239,13 +331,9 @@ void Renderer::render()
     lightRotationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalLights, this->m_dLights,
                                                              this->m_nLights, this->m_lightAngle);
     shadingKernel<CUDA_BLOCK_DIM.x * CUDA_BLOCK_DIM.y * CUDA_BLOCK_DIM.z><<<this->m_gridDim, CUDA_BLOCK_DIM>>>(
-        static_cast<uchar3*>(this->m_dTexBuf), this->m_width,
-        this->m_height, this->m_dFaces, this->m_nFaces,
-        this->m_dLights, this->m_nLights, this->m_dNormals,
-        this->m_color, this->m_kD,
-        this->m_kS, this->m_kA, this->m_alpha,
-        this->camera.pos,
-        this->camera.forwardDir);
+        static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
+        this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color, this->m_kD,
+        this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
 }
 
