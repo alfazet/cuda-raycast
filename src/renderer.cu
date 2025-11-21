@@ -43,6 +43,7 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
     return rgbFloatsToBytes(resColor);
 }
 
+// TODO: SOA
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces, Normals* normals,
                                                int nFaces,
                                                Light* lights, int nLights, float3 surfaceColor, float kD, float kS,
@@ -59,7 +60,8 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     float yPerBlock = 2.0f / static_cast<float>(gridDim.y);
     float blockMinX = baseCameraPos.x - aspect_ratio + blockIdx.x * xPerBlock, blockMinY =
         baseCameraPos.y - 1.0f + blockIdx.y * yPerBlock;
-    float blockMaxX = blockMinX + xPerBlock, blockMaxY = blockMinY + yPerBlock;
+    // make blocks overlap to prevent visual glitches
+    float blockMaxX = blockMinX + 2.0f * xPerBlock, blockMaxY = blockMinY + 2.0f * yPerBlock;
 
     float minT = FLT_MAX;
     int hitIdx = -1;
@@ -76,7 +78,7 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
             float minY = min(vA.y, min(vB.y, vC.y));
             float maxX = max(vA.x, max(vB.x, vC.x));
             float maxY = max(vA.y, max(vB.y, vC.y));
-            isReachable = (maxX >= blockMinX && maxY >= blockMinY && minX <= blockMaxX && minY <= blockMaxY);
+            isReachable = minX <= blockMaxX && minY <= blockMaxY && maxX >= blockMinX && maxY >= blockMinY;
         }
         if (isReachable)
         {
@@ -115,103 +117,48 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     }
 }
 
-// N - block size
 /*
-template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, Triangle* faces,
-                                               int nFaces,
-                                               Light* lights,
-                                               int nLights, Normals* normals, float3 surfaceColor, float kD,
-                                               float kS,
-                                               float kA,
-                                               float alpha, float3 baseCameraPos, float3 rayDir)
+__global__ void shadingKernelSlow(uchar3* texBuf, int width, int height, Triangle* faces,
+                                  Normals* normals,
+                                  int nFaces,
+                                  Light* lights, int nLights, float3 surfaceColor, float kD, float kS,
+                                  float kA, float alpha, float3 baseCameraPos, float3 rayDir)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     int ty = blockIdx.y * blockDim.y + threadIdx.y;
-    float aspect_ratio = width / static_cast<float>(height);
-    float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
-    float y = 2.0f * (ty / static_cast<float>(height)) - 1.0f;
-    float xPerBlock = 2.0f * aspect_ratio / static_cast<float>(blockDim.x);
-    float yPerBlock = 2.0f / static_cast<float>(blockDim.y);
-    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
-    // stores the faces that this block of threads can reach
-    // we're firing rays parallel to the z-axis, so if a triangle is fully outside the bounding box
-    // of these blocks' rays, then it's for sure not reachable
-    __shared__ Triangle reachableFaces[N];
-    // required to retrieve normal vectors later
-    __shared__ short realFaceIdx[N];
-
-    int hitIdx = -1, shMemIdx = threadIdx.y * blockDim.x + threadIdx.x;
-    float t, minT = FLT_MAX; // for depth-buffering
-    float3 hitPoint, hitPointBary;
-    float blockMinX = -aspect_ratio + blockIdx.x * xPerBlock, blockMinY = -1.0f + blockIdx.y * yPerBlock;
-    float blockMaxX = blockMinX + xPerBlock, blockMaxY = blockMinY + yPerBlock;
-    for (int i = 0; i < nFaces; i += N)
-    {
-        int faceIdx = i + threadIdx.y * blockDim.x + threadIdx.x, isReachable = 0;
-        if (faceIdx < nFaces)
-        {
-            isReachable = 1;
-            float3 vA = faces[faceIdx].a, vB = faces[faceIdx].b, vC = faces[faceIdx].c;
-            float minX = min(vA.x, min(vB.x, vC.x));
-            float minY = min(vA.y, min(vB.y, vC.y));
-            float maxX = max(vA.x, max(vB.x, vC.x));
-            float maxY = max(vA.y, max(vB.y, vC.y));
-            reachableFaces[shMemIdx] = faces[faceIdx];
-            realFaceIdx[shMemIdx] = static_cast<short>(faceIdx);
-            if (maxX < blockMinX || maxY < blockMinY || minX > blockMaxX || minY > blockMaxY)
-            {
-                isReachable = 0;
-                // mark as unused
-                reachableFaces[shMemIdx].a.x = FLT_MAX;
-            }
-            // if none of the triangles in this group are reachable by this block, don't do anything
-            int isAnyReachable = __syncthreads_or(isReachable);
-            // calculate the color of this thread's pixel (only considering this group of reachable faces,
-            // the final color will be determined later)
-            if (isAnyReachable && tx < width && ty < height)
-            {
-                float3 tempHitPointBary;
-                int tempHitIdx;
-                triangleIntersectionMany(cameraPos, rayDir, reachableFaces, N, &t, &tempHitPointBary, &tempHitIdx);
-                if (t > 0.0 && t < minT)
-                {
-                    hitPoint = cameraPos + t * rayDir;
-                    minT = t;
-                    hitPointBary = tempHitPointBary;
-                    hitIdx = static_cast<int>(realFaceIdx[tempHitIdx]);
-                }
-            }
-            // sync because we're using shared memory
-            __syncthreads();
-        }
-    }
     if (tx >= width || ty >= height)
     {
         return;
     }
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
+    float y = 2.0f * (ty / static_cast<float>(height)) - 1.0f;
+    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
+
+    float minT = FLT_MAX, t;
+    int hitIdx = -1;
+    float3 hitPoint, hitPointBary, normal;
+    for (int i = 0; i < nFaces; i++)
+    {
+        triangleIntersection(cameraPos, rayDir, &faces[i], &t, &hitPointBary);
+        if (t > 0.0 && t < minT)
+        {
+            hitPoint = cameraPos + t * rayDir;
+            minT = t;
+            hitIdx = i;
+            normal = normalize(
+                hitPointBary.x * normals[i].na + hitPointBary.y * normals[i].nb + hitPointBary.z * normals[i].nc);
+        }
+    }
     if (hitIdx == -1)
     {
         texBuf[ty * width + tx] = BKG_COLOR;
-        return;
     }
-    float3 resColor = ZERO;
-    float3 normal = normalize(
-        hitPointBary.x * normals[hitIdx].na + hitPointBary.y * normals[hitIdx].nb + hitPointBary.z * normals[hitIdx].
-        nc);
-    for (int i = 0; i < nLights; i++)
+    else
     {
-        float3 toLight = normalize(lights[i].pos - hitPoint);
-        float nlDot = max(dot(normal, toLight), 0.0f);
-        float3 view = normalize(cameraPos - hitPoint);
-        float3 rVec = normalize(2.0f * nlDot * normal - toLight);
-        float rvDot = max(dot(rVec, view), 0.0f);
-        float rvDotPow = powf(rvDot, alpha);
-        resColor += lights[i].color * surfaceColor * (nlDot * kD + rvDotPow * kS);
+        texBuf[ty * width + tx] = computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA,
+                                               alpha);
     }
-    float ambientI = min(0.25f * nLights, 1.0f);
-    resColor += kA * ambientI * surfaceColor;
-    resColor = clamp(resColor, ZERO, ONE);
-    texBuf[ty * width + tx] = rgbFloatsToBytes(resColor);
 }
 */
 
@@ -237,13 +184,20 @@ __global__ void objectTransformationKernel(Triangle* originalFaces, Triangle* tr
     float3 row2z = make_float3(sinf(angles.z), cosf(angles.z), 0.0f);
     float3 row3z = make_float3(0.0f, 0.0f, 1.0f);
 
-    transFaces[tx].a = vecMatMul3(originalFaces[tx].a, row1x, row2x, row3x);
+    transFaces[tx].a = originalFaces[tx].a;
+    transFaces[tx].b = originalFaces[tx].b;
+    transFaces[tx].c = originalFaces[tx].c;
+    rotatedNormals[tx].na = originalNormals[tx].na;
+    rotatedNormals[tx].nb = originalNormals[tx].nb;
+    rotatedNormals[tx].nc = originalNormals[tx].nc;
+
+    transFaces[tx].a = vecMatMul3(transFaces[tx].a, row1x, row2x, row3x);
     transFaces[tx].a = vecMatMul3(transFaces[tx].a, row1y, row2y, row3y);
     transFaces[tx].a = vecMatMul3(transFaces[tx].a, row1z, row2z, row3z);
-    transFaces[tx].b = vecMatMul3(originalFaces[tx].b, row1x, row2x, row3x);
+    transFaces[tx].b = vecMatMul3(transFaces[tx].b, row1x, row2x, row3x);
     transFaces[tx].b = vecMatMul3(transFaces[tx].b, row1y, row2y, row3y);
     transFaces[tx].b = vecMatMul3(transFaces[tx].b, row1z, row2z, row3z);
-    transFaces[tx].c = vecMatMul3(originalFaces[tx].c, row1x, row2x, row3x);
+    transFaces[tx].c = vecMatMul3(transFaces[tx].c, row1x, row2x, row3x);
     transFaces[tx].c = vecMatMul3(transFaces[tx].c, row1y, row2y, row3y);
     transFaces[tx].c = vecMatMul3(transFaces[tx].c, row1z, row2z, row3z);
 
@@ -251,13 +205,13 @@ __global__ void objectTransformationKernel(Triangle* originalFaces, Triangle* tr
     transFaces[tx].b *= scale;
     transFaces[tx].c *= scale;
 
-    rotatedNormals[tx].na = vecMatMul3(originalNormals[tx].na, row1x, row2x, row3x);
+    rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1x, row2x, row3x);
     rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1y, row2y, row3y);
     rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1z, row2z, row3z);
-    rotatedNormals[tx].nb = vecMatMul3(originalNormals[tx].nb, row1x, row2x, row3x);
+    rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1x, row2x, row3x);
     rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1y, row2y, row3y);
     rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1z, row2z, row3z);
-    rotatedNormals[tx].nc = vecMatMul3(originalNormals[tx].nc, row1x, row2x, row3x);
+    rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1x, row2x, row3x);
     rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1y, row2y, row3y);
     rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1z, row2z, row3z);
 }
@@ -283,8 +237,6 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
                                   m_nLights{static_cast<int>(lights.size())}, m_kD{kD},
                                   m_kS{kS}, m_kA{kA}, m_alpha{alpha}, m_color{color}
 {
-    this->m_gridDim = dim3((this->m_width + CUDA_BLOCK_DIM.x - 1) / CUDA_BLOCK_DIM.x,
-                           (this->m_height + CUDA_BLOCK_DIM.y - 1) / CUDA_BLOCK_DIM.y, 1);
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
 
@@ -324,13 +276,20 @@ void Renderer::render()
 {
     cudaErrCheck(cudaGraphicsMapResources(1, &this->m_pboRes));
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_dTexBuf, nullptr, this->m_pboRes));
-    objectTransformationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalFaces, this->m_dFaces,
-                                                                    this->m_dOriginalNormals, this->m_dNormals,
-                                                                    this->m_nFaces,
-                                                                    this->m_angles, this->m_scale);
-    lightRotationKernel<<<this->m_gridDim, CUDA_BLOCK_DIM>>>(this->m_dOriginalLights, this->m_dLights,
-                                                             this->m_nLights, this->m_lightAngle);
-    shadingKernel<CUDA_BLOCK_DIM.x * CUDA_BLOCK_DIM.y * CUDA_BLOCK_DIM.z><<<this->m_gridDim, CUDA_BLOCK_DIM>>>(
+    dim3 gridDim;
+
+    gridDim = dim3((this->m_nFaces + CUDA_BLOCK_DIM_1D.x - 1) / CUDA_BLOCK_DIM_1D.x, 1, 1);
+    objectTransformationKernel<<<gridDim, CUDA_BLOCK_DIM_1D>>>(this->m_dOriginalFaces, this->m_dFaces,
+                                                               this->m_dOriginalNormals, this->m_dNormals,
+                                                               this->m_nFaces,
+                                                               this->m_angles, this->m_scale);
+
+    gridDim = dim3((this->m_nLights + CUDA_BLOCK_DIM_1D.x - 1) / CUDA_BLOCK_DIM_1D.x, 1, 1);
+    lightRotationKernel<<<gridDim, CUDA_BLOCK_DIM_1D>>>(this->m_dOriginalLights, this->m_dLights,
+                                                        this->m_nLights, this->m_lightAngle);
+    gridDim = dim3((this->m_width + CUDA_BLOCK_DIM_2D.x - 1) / CUDA_BLOCK_DIM_2D.x,
+                   (this->m_height + CUDA_BLOCK_DIM_2D.y - 1) / CUDA_BLOCK_DIM_2D.y, 1);
+    shadingKernel<CUDA_BLOCK_DIM_2D.x * CUDA_BLOCK_DIM_2D.y * CUDA_BLOCK_DIM_2D.z><<<gridDim, CUDA_BLOCK_DIM_2D>>>(
         static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
         this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color, this->m_kD,
         this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
