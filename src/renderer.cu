@@ -43,9 +43,8 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
     return rgbFloatsToBytes(resColor);
 }
 
-// TODO: SOA
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, TriangleSOA faces,
-                                               Normals* normals,
+                                               NormalsSOA normals,
                                                int nFaces,
                                                Light* lights, int nLights, float3 surfaceColor, float kD, float kS,
                                                float kA, float alpha, float3 baseCameraPos, float3 rayDir)
@@ -107,8 +106,8 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     else
     {
         float3 normal = normalize(
-            hitPointBary.x * normals[hitIdx].na + hitPointBary.y * normals[hitIdx].nb + hitPointBary.z * normals[hitIdx]
-            .nc);
+            hitPointBary.x * normals.na[hitIdx] + hitPointBary.y * normals.nb[hitIdx] + hitPointBary.z * normals.nc[
+                hitIdx]);
         float3 hitPoint = cameraPos + minT * rayDir;
         texBuf[ty * width + tx] = computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA,
                                                alpha);
@@ -118,8 +117,8 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
 // TODO: quaternions
 // rotates and scales all faces (together with their normals)
 __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSOA transFaces,
-                                           Normals* originalNormals,
-                                           Normals* rotatedNormals, int nFaces, float3 angles, float scale)
+                                           NormalsSOA originalNormals,
+                                           NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     if (tx >= nFaces)
@@ -142,9 +141,9 @@ __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSO
     transFaces.a[tx] = originalFaces.a[tx];
     transFaces.b[tx] = originalFaces.b[tx];
     transFaces.c[tx] = originalFaces.c[tx];
-    rotatedNormals[tx].na = originalNormals[tx].na;
-    rotatedNormals[tx].nb = originalNormals[tx].nb;
-    rotatedNormals[tx].nc = originalNormals[tx].nc;
+    rotatedNormals.na[tx] = originalNormals.na[tx];
+    rotatedNormals.nb[tx] = originalNormals.nb[tx];
+    rotatedNormals.nc[tx] = originalNormals.nc[tx];
 
     transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1x, row2x, row3x);
     transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1y, row2y, row3y);
@@ -160,15 +159,15 @@ __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSO
     transFaces.b[tx] *= scale;
     transFaces.c[tx] *= scale;
 
-    rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1x, row2x, row3x);
-    rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1y, row2y, row3y);
-    rotatedNormals[tx].na = vecMatMul3(rotatedNormals[tx].na, row1z, row2z, row3z);
-    rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1x, row2x, row3x);
-    rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1y, row2y, row3y);
-    rotatedNormals[tx].nb = vecMatMul3(rotatedNormals[tx].nb, row1z, row2z, row3z);
-    rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1x, row2x, row3x);
-    rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1y, row2y, row3y);
-    rotatedNormals[tx].nc = vecMatMul3(rotatedNormals[tx].nc, row1z, row2z, row3z);
+    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1x, row2x, row3x);
+    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1y, row2y, row3y);
+    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1z, row2z, row3z);
+    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1x, row2x, row3x);
+    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1y, row2y, row3y);
+    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1z, row2z, row3z);
+    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1x, row2x, row3x);
+    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1y, row2y, row3y);
+    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1z, row2z, row3z);
 }
 
 // rotates all lights by the specified angle around the Y axis
@@ -200,6 +199,21 @@ void destructureFaces(std::vector<Triangle>& faces, std::vector<float3>& a, std:
     }
 }
 
+void destructureNormals(std::vector<Normals>& normals, std::vector<float3>& a, std::vector<float3>& b,
+                        std::vector<float3>& c)
+{
+    int n = normals.size();
+    a.resize(n);
+    b.resize(n);
+    c.resize(n);
+    for (int i = 0; i < n; i++)
+    {
+        a[i] = normals[i].na;
+        b[i] = normals[i].nb;
+        c[i] = normals[i].nc;
+    }
+}
+
 Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
                    std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
                    float alpha) : m_width{width}, m_height{height},
@@ -221,7 +235,6 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
                             cudaMemcpyHostToDevice));
     cudaErrCheck(cudaMemcpy(this->m_dFaces.c, facesC.data(), this->m_nFaces * sizeof(float3),
                             cudaMemcpyHostToDevice));
-
     cudaErrCheck(cudaMalloc(&this->m_dOriginalFaces.a, this->m_nFaces * sizeof(float3)));
     cudaErrCheck(cudaMalloc(&this->m_dOriginalFaces.b, this->m_nFaces * sizeof(float3)));
     cudaErrCheck(cudaMalloc(&this->m_dOriginalFaces.c, this->m_nFaces * sizeof(float3)));
@@ -238,19 +251,33 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
     cudaErrCheck(cudaMemcpy(this->m_dOriginalLights, this->m_dLights, this->m_nLights * sizeof(Light),
                             cudaMemcpyDeviceToDevice));
 
-    cudaErrCheck(cudaMalloc(&this->m_dNormals, this->m_nFaces * sizeof(Normals)));
-    cudaErrCheck(cudaMemcpy(this->m_dNormals, normals.data(), this->m_nFaces * sizeof(Normals),
+    std::vector<float3> normalsA, normalsB, normalsC;
+    destructureNormals(normals, normalsA, normalsB, normalsC);
+    cudaErrCheck(cudaMalloc(&this->m_dNormals.na, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dNormals.nb, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dNormals.nc, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMemcpy(this->m_dNormals.na, normalsA.data(), this->m_nFaces * sizeof(float3),
                             cudaMemcpyHostToDevice));
-    cudaErrCheck(cudaMalloc(&this->m_dOriginalNormals, this->m_nFaces * sizeof(Normals)));
-    cudaErrCheck(cudaMemcpy(this->m_dOriginalNormals, this->m_dNormals, this->m_nFaces * sizeof(Normals),
+    cudaErrCheck(cudaMemcpy(this->m_dNormals.nb, normalsB.data(), this->m_nFaces * sizeof(float3),
+                            cudaMemcpyHostToDevice));
+    cudaErrCheck(cudaMemcpy(this->m_dNormals.nc, normalsC.data(), this->m_nFaces * sizeof(float3),
+                            cudaMemcpyHostToDevice));
+    cudaErrCheck(cudaMalloc(&this->m_dOriginalNormals.na, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dOriginalNormals.nb, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dOriginalNormals.nc, this->m_nFaces * sizeof(float3)));
+    cudaErrCheck(cudaMemcpy(this->m_dOriginalNormals.na, this->m_dNormals.na, this->m_nFaces * sizeof(float3),
+                            cudaMemcpyDeviceToDevice));
+    cudaErrCheck(cudaMemcpy(this->m_dOriginalNormals.nb, this->m_dNormals.nb, this->m_nFaces * sizeof(float3),
+                            cudaMemcpyDeviceToDevice));
+    cudaErrCheck(cudaMemcpy(this->m_dOriginalNormals.nc, this->m_dNormals.nc, this->m_nFaces * sizeof(float3),
                             cudaMemcpyDeviceToDevice));
 }
 
 Renderer::~Renderer()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
-    cudaErrCheck(cudaFree(this->m_dOriginalNormals));
-    cudaErrCheck(cudaFree(this->m_dNormals));
+    // cudaErrCheck(cudaFree(this->m_dOriginalNormals));
+    // cudaErrCheck(cudaFree(this->m_dNormals));
     cudaErrCheck(cudaFree(this->m_dOriginalLights));
     cudaErrCheck(cudaFree(this->m_dLights));
     cudaErrCheck(cudaFree(this->m_dOriginalFaces.a));
@@ -317,7 +344,7 @@ void Renderer::handleKey(int key, float dt)
         this->m_lightAngle -= this->m_rotSpeed * dt;
         break;
     case GLFW_KEY_MINUS:
-        this->m_scale -= this->m_scaleSpeed * dt;
+        this->m_scale = max(0.001f, this->m_scale - this->m_scaleSpeed * dt);
         break;
     case GLFW_KEY_EQUAL:
         this->m_scale += this->m_scaleSpeed * dt;

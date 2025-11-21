@@ -10,6 +10,11 @@ struct Normals
     float3 na, nb, nc;
 };
 
+struct NormalsSOA
+{
+    float3 *na, *nb, *nc;
+};
+
 // triangle a-b-c, with normals na, nb and nc in those points
 struct Triangle
 {

@@ -33,10 +33,9 @@ private:
     void* m_dTexBuf; // d -> stored on the device
     float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.25f;
     float3 m_color, m_angles = float3(0.0f, 0.0f, 0.0f); // angles = (yaw, pitch, roll)
-    // Triangle *m_dFaces, *m_dOriginalFaces;
     TriangleSOA m_dFaces, m_dOriginalFaces;
     Light *m_dLights, *m_dOriginalLights;
-    Normals *m_dNormals, *m_dOriginalNormals;
+    NormalsSOA m_dNormals, m_dOriginalNormals;
 };
 
 #endif //CUDA_RAYCAST_RENDERER_CUH
