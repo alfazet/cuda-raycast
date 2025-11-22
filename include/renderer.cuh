@@ -62,6 +62,9 @@ public:
 
 private:
     uchar3* m_texBuf;
+    TriangleSOA m_faces, m_originalFaces;
+    LightSOA m_lights, m_originalLights;
+    NormalsSOA m_normals, m_originalNormals;
 };
 
 #endif //CUDA_RAYCAST_RENDERER_CUH

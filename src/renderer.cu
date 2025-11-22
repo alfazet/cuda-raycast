@@ -21,9 +21,9 @@ __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* 
     }
 }
 
-__device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights, int nLights,
-                               float3 surfaceColor, float kD, float kS, float kA,
-                               float alpha)
+__device__ __host__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights, int nLights,
+                                        float3 surfaceColor, float kD, float kS, float kA,
+                                        float alpha)
 {
     float3 resLight = ZERO;
     for (int i = 0; i < nLights; i++)
@@ -42,11 +42,39 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
     return rgbFloatsToBytes(resColor);
 }
 
-void shading(int idxX, int idxY, int width, int height, TriangleSOA faces, NormalsSOA normals, int nFaces,
-             LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
-             float kA, float alpha, float3 baseCameraPos, float3 rayDir)
+uchar3 shading(int idxX, int idxY, int width, int height, TriangleSOA faces, NormalsSOA normals, int nFaces,
+               LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
+               float kA, float alpha, float3 baseCameraPos, float3 rayDir)
 {
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = (2.0f * (idxX / static_cast<float>(width)) - 1.0f) * aspect_ratio;
+    float y = 2.0f * (idxY / static_cast<float>(height)) - 1.0f;
+    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
 
+    float minT = FLT_MAX, t;
+    int hitIdx = -1;
+    float3 hitPointBary, bary;
+    for (int i = 0; i < nFaces; i++)
+    {
+        Triangle face = {.a = faces.a[i], .b = faces.b[i], .c = faces.c[i]};
+        triangleIntersection(cameraPos, rayDir, &face, &t, &bary);
+        if (t > 0.0f && t < minT)
+        {
+            minT = t;
+            hitPointBary = bary;
+            hitIdx = i;
+        }
+    }
+    if (hitIdx == -1)
+    {
+        return BKG_COLOR;
+    }
+    float3 normal = normalize(
+        hitPointBary.x * normals.na[hitIdx] + hitPointBary.y * normals.nb[hitIdx] + hitPointBary.z * normals.nc[
+            hitIdx]);
+    float3 hitPoint = cameraPos + minT * rayDir;
+
+    return computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA, alpha);
 }
 
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, TriangleSOA faces,
@@ -117,6 +145,23 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
         float3 hitPoint = cameraPos + minT * rayDir;
         texBuf[ty * width + tx] = computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA,
                                                alpha);
+    }
+}
+
+void shadingCPU(uchar3* texBuf, int width, int height, TriangleSOA faces,
+                NormalsSOA normals,
+                int nFaces,
+                LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
+                float kA, float alpha, float3 baseCameraPos, float3 rayDir)
+{
+    // TODO: parallelize this maybe
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            texBuf[y * width + x] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
+                                            kD, kS, kA, alpha, baseCameraPos, rayDir);
+        }
     }
 }
 
@@ -330,6 +375,12 @@ RendererGPU::RendererGPU(uint pbo, int width, int height, std::vector<Triangle>&
 RendererGPU::~RendererGPU()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
+    cudaErrCheck(cudaFree(this->m_dOriginalNormals.na));
+    cudaErrCheck(cudaFree(this->m_dOriginalNormals.nb));
+    cudaErrCheck(cudaFree(this->m_dOriginalNormals.nc));
+    cudaErrCheck(cudaFree(this->m_dNormals.na));
+    cudaErrCheck(cudaFree(this->m_dNormals.nb));
+    cudaErrCheck(cudaFree(this->m_dNormals.nc));
     cudaErrCheck(cudaFree(this->m_dOriginalLights.color));
     cudaErrCheck(cudaFree(this->m_dOriginalLights.pos));
     cudaErrCheck(cudaFree(this->m_dLights.color));
@@ -374,24 +425,82 @@ RendererCPU::RendererCPU(int width, int height, std::vector<Triangle>& faces, st
                          float alpha) : Renderer(width, height, faces.size(), lights.size(), color, kD, kS, kA, alpha)
 {
     this->m_texBuf = new uchar3[width * height * sizeof(uchar3)];
+
+    std::vector<float3> facesA, facesB, facesC;
+    destructureFaces(faces, facesA, facesB, facesC);
+    this->m_faces.a = new float3[faces.size()];
+    this->m_faces.b = new float3[faces.size()];
+    this->m_faces.c = new float3[faces.size()];
+    memcpy(this->m_faces.a, facesA.data(), this->m_nFaces * sizeof(float3));
+    memcpy(this->m_faces.b, facesB.data(), this->m_nFaces * sizeof(float3));
+    memcpy(this->m_faces.c, facesC.data(), this->m_nFaces * sizeof(float3));
+
+    this->m_originalFaces.a = new float3[faces.size()];
+    this->m_originalFaces.b = new float3[faces.size()];
+    this->m_originalFaces.c = new float3[faces.size()];
+    memcpy(this->m_originalFaces.a, this->m_faces.a, this->m_nFaces * sizeof(float3));
+    memcpy(this->m_originalFaces.b, this->m_faces.b, this->m_nFaces * sizeof(float3));
+    memcpy(this->m_originalFaces.c, this->m_faces.c, this->m_nFaces * sizeof(float3));
+
+    std::vector<float3> lightsColors, lightsPos;
+    destructureLights(lights, lightsColors, lightsPos);
+    this->m_lights.color = new float3[lights.size()];
+    this->m_lights.pos = new float3[lights.size()];
+    memcpy(this->m_lights.color, lightsColors.data(), this->m_nLights * sizeof(float3));
+    memcpy(this->m_lights.pos, lightsPos.data(), this->m_nLights * sizeof(float3));
+
+    this->m_originalLights.color = new float3[lights.size()];
+    this->m_originalLights.pos = new float3[lights.size()];
+    memcpy(this->m_originalLights.color, this->m_lights.color, this->m_nLights * sizeof(float3));
+    memcpy(this->m_originalLights.pos, this->m_lights.pos, this->m_nLights * sizeof(float3));
+
+    std::vector<float3> normalsA, normalsB, normalsC;
+    destructureNormals(normals, normalsA, normalsB, normalsC);
+    this->m_normals.na = new float3[normals.size()];
+    this->m_normals.nb = new float3[normals.size()];
+    this->m_normals.nc = new float3[normals.size()];
+    memcpy(this->m_normals.na, normalsA.data(), this->m_nFaces * sizeof(float3));
+    memcpy(this->m_normals.nb, normalsB.data(), this->m_nFaces * sizeof(float3));
+    memcpy(this->m_normals.nc, normalsC.data(), this->m_nFaces * sizeof(float3));
+
+    this->m_originalNormals.na = new float3[faces.size()];
+    this->m_originalNormals.nb = new float3[faces.size()];
+    this->m_originalNormals.nc = new float3[faces.size()];
+    memcpy(this->m_originalNormals.na, this->m_normals.na, this->m_nFaces * sizeof(float3));
+    memcpy(this->m_originalNormals.nb, this->m_normals.nb, this->m_nFaces * sizeof(float3));
+    memcpy(this->m_originalNormals.nc, this->m_normals.nc, this->m_nFaces * sizeof(float3));
 }
 
 RendererCPU::~RendererCPU()
 {
+    delete[] this->m_originalNormals.na;
+    delete[] this->m_originalNormals.nb;
+    delete[] this->m_originalNormals.nc;
+    delete[] this->m_normals.na;
+    delete[] this->m_normals.nb;
+    delete[] this->m_normals.nc;
+    delete[] this->m_originalLights.color;
+    delete[] this->m_originalLights.pos;
+    delete[] this->m_lights.color;
+    delete[] this->m_lights.pos;
+    delete[] this->m_originalFaces.a;
+    delete[] this->m_originalFaces.b;
+    delete[] this->m_originalFaces.c;
+    delete[] this->m_faces.a;
+    delete[] this->m_faces.b;
+    delete[] this->m_faces.c;
     delete[] this->m_texBuf;
 }
 
 void RendererCPU::render()
 {
-    for (int i = 0; i < this->m_height; i++)
-    {
-        for (int j = 0; j < this->m_width; j++)
-        {
-            // transform object
-            // rotate lights
-            // shading
-        }
-    }
+    objectTransformationCPU(this->m_originalFaces, this->m_faces, this->m_originalNormals, this->m_normals,
+                            this->m_nFaces, this->m_angles, this->m_scale);
+    lightRotationCPU(this->m_originalLights, this->m_lights, this->m_nLights, this->m_lightAngle);
+    shadingCPU(this->m_texBuf, this->m_width, this->m_height, this->m_faces, this->m_normals, this->m_nFaces,
+               this->m_lights,
+               this->m_nLights, this->m_color, this->m_kD, this->m_kS, this->m_kA, this->m_alpha,
+               this->camera.pos, this->camera.forwardDir);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, this->m_width * this->m_height * sizeof(uchar3), this->m_texBuf,
                  GL_STATIC_DRAW);
 }
