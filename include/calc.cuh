@@ -10,10 +10,20 @@ struct Normals
     float3 na, nb, nc;
 };
 
+struct NormalsSOA
+{
+    float3 *na, *nb, *nc;
+};
+
 // triangle a-b-c, with normals na, nb and nc in those points
 struct Triangle
 {
     float3 a, b, c;
+};
+
+struct TriangleSOA
+{
+    float3 *a, *b, *c;
 };
 
 // return t such that P = origin + t * ray_dir is the point where the ray from origin along ray_dir
@@ -57,6 +67,12 @@ inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
     unsigned char b = static_cast<unsigned char>(255.0 * color.z);
 
     return make_uchar3(r, g, b);
+}
+
+// matrix given as rows r1, r2, r3
+inline __device__ __host__ float3 vecMatMul3(float3 v, float3 r1, float3 r2, float3 r3)
+{
+    return make_float3(dot(v, r1), dot(v, r2), dot(v, r3));
 }
 
 #endif //CUDA_RAYCAST_CALC_CUH

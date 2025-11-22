@@ -6,13 +6,16 @@
 #include "common.cuh"
 #include "light.cuh"
 
-inline __device__ float3 ZERO = float3(0.0f, 0.0f, 0.0f);
-inline __device__ float3 ONE = float3(1.0f, 1.0f, 1.0f);
+__device__ constexpr float3 ZERO = float3(0.0f, 0.0f, 0.0f);
+__device__ constexpr float3 ONE = float3(1.0f, 1.0f, 1.0f);
+__device__ constexpr uchar3 BKG_COLOR = uchar3(32, 32, 32);
+constexpr dim3 CUDA_BLOCK_DIM_1D = dim3(1024, 1, 1);
+constexpr dim3 CUDA_BLOCK_DIM_2D = dim3(32, 32, 1);
 
 class Renderer
 {
 public:
-    Camera camera;
+    Camera camera = Camera();
 
     Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
              std::vector<Light>& lights,
@@ -28,12 +31,11 @@ private:
     cudaGraphicsResource* m_pboRes{};
     int m_width, m_height, m_nFaces, m_nLights;
     void* m_dTexBuf; // d -> stored on the device
-    float m_kD, m_kS, m_kA, m_alpha;
-    float3 m_color;
-    Triangle* m_dFaces;
-    Light* m_dLights;
-    Normals* m_dNormals;
-    dim3 m_blockDim, m_gridDim;
+    float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.2f;
+    float3 m_color, m_angles = float3(0.0f, 0.0f, 0.0f); // angles = (yaw, pitch, roll)
+    TriangleSOA m_dFaces, m_dOriginalFaces;
+    LightSOA m_dLights, m_dOriginalLights;
+    NormalsSOA m_dNormals, m_dOriginalNormals;
 };
 
 #endif //CUDA_RAYCAST_RENDERER_CUH
