@@ -1,4 +1,6 @@
 #include "app.cuh"
+
+#include "light_parser.cuh"
 #include "obj_parser.cuh"
 
 void framebufferSizeCallback(GLFWwindow* window, int new_width, int new_height)
@@ -110,10 +112,13 @@ App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_H
     initBuffers(this->m_vao, this->m_vbo, this->m_vboTex, this->m_ebo);
     initTexture(this->m_tex, this->m_pbo, this->texWidth, this->texHeight);
 
-    ObjParser parser;
-    parser.parseFile(argv[1]);
-    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, parser.faces, parser.orderedNormals,
-                                  parser.lights, parser.color, parser.kD, parser.kS, parser.kA, parser.alpha);
+    ObjParser objParser;
+    LightParser lightParser;
+    objParser.parseFile(argv[1]);
+    lightParser.parseFile(argv[2]);
+    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, objParser.faces,
+                                  objParser.orderedNormals, lightParser.lights, lightParser.objectColor, lightParser.kD,
+                                  lightParser.kS, lightParser.kA, lightParser.alpha);
     glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));

@@ -76,36 +76,6 @@ std::tuple<Triangle, Normals> ObjParser::parseFaceWithNormals(const std::string&
     return {triangle, normals};
 }
 
-Light ObjParser::parseLight(const std::string& data) const
-{
-    std::stringstream ss(data);
-    float x, y, z, r, g, b;
-    ss >> x >> y >> z >> r >> g >> b;
-
-    return Light{
-        .pos = make_float3(x, y, z),
-        .color = make_float3(r, g, b),
-    };
-}
-
-float ObjParser::parseFloat(const std::string& data) const
-{
-    std::stringstream ss(data);
-    float x;
-    ss >> x;
-
-    return x;
-}
-
-float3 ObjParser::parseColor(const std::string& data) const
-{
-    std::stringstream ss(data);
-    float r, g, b;
-    ss >> r >> g >> b;
-
-    return make_float3(r, g, b);
-}
-
 void ObjParser::parseLine(const std::string& line)
 {
     if (line.empty())
@@ -141,30 +111,6 @@ void ObjParser::parseLine(const std::string& line)
             this->orderedNormals.push_back(normals);
         }
     }
-    else if (firstToken == "color")
-    {
-        this->color = this->parseColor(rest);
-    }
-    else if (firstToken == "light")
-    {
-        this->lights.push_back(this->parseLight(rest));
-    }
-    else if (firstToken == "kd")
-    {
-        this->kD = this->parseFloat(rest);
-    }
-    else if (firstToken == "ks")
-    {
-        this->kS = this->parseFloat(rest);
-    }
-    else if (firstToken == "ka")
-    {
-        this->kA = this->parseFloat(rest);
-    }
-    else if (firstToken == "alpha")
-    {
-        this->alpha = this->parseFloat(rest);
-    }
 }
 
 void ObjParser::parseFile(const char* path)
@@ -177,6 +123,7 @@ void ObjParser::parseFile(const char* path)
     }
 
     // compute the vertex normals by averaging out the normals of the neighboring faces
+    // if they're not specified by the file
     if (this->normals.empty())
     {
         std::vector<float3> vertexNormals(this->vertices.size());

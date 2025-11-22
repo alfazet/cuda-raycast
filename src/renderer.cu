@@ -25,7 +25,7 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
                                float3 surfaceColor, float kD, float kS, float kA,
                                float alpha)
 {
-    float3 resColor = ZERO;
+    float3 resLight = ZERO;
     for (int i = 0; i < nLights; i++)
     {
         float3 toLight = normalize(lights.pos[i] - hitPoint);
@@ -34,11 +34,10 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
         float3 rVec = normalize(2.0f * nlDot * normal - toLight);
         float rvDot = max(dot(rVec, view), 0.0f);
         float rvDotPow = powf(rvDot, alpha);
-        resColor += lights.color[i] * surfaceColor * (nlDot * kD + rvDotPow * kS);
+        resLight += lights.color[i] * (nlDot * kD + rvDotPow * kS);
     }
-    float ambientI = min(0.25f * nLights, 1.0f);
-    resColor += kA * ambientI * surfaceColor;
-    resColor = clamp(resColor, ZERO, ONE);
+    resLight += kA;
+    float3 resColor = clamp(resLight * surfaceColor, ZERO, ONE);
 
     return rgbFloatsToBytes(resColor);
 }
@@ -114,7 +113,6 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     }
 }
 
-// TODO: quaternions
 // rotates and scales all faces (together with their normals)
 __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSOA transFaces,
                                            NormalsSOA originalNormals,
@@ -145,29 +143,29 @@ __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSO
     rotatedNormals.nb[tx] = originalNormals.nb[tx];
     rotatedNormals.nc[tx] = originalNormals.nc[tx];
 
-    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1x, row2x, row3x);
-    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1y, row2y, row3y);
     transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1z, row2z, row3z);
-    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1x, row2x, row3x);
-    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1y, row2y, row3y);
+    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1y, row2y, row3y);
+    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1x, row2x, row3x);
     transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1z, row2z, row3z);
-    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1x, row2x, row3x);
-    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1y, row2y, row3y);
+    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1y, row2y, row3y);
+    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1x, row2x, row3x);
     transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1z, row2z, row3z);
+    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1y, row2y, row3y);
+    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1x, row2x, row3x);
 
     transFaces.a[tx] *= scale;
     transFaces.b[tx] *= scale;
     transFaces.c[tx] *= scale;
 
-    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1x, row2x, row3x);
-    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1y, row2y, row3y);
     rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1z, row2z, row3z);
-    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1x, row2x, row3x);
-    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1y, row2y, row3y);
+    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1y, row2y, row3y);
+    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1x, row2x, row3x);
     rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1z, row2z, row3z);
-    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1x, row2x, row3x);
-    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1y, row2y, row3y);
+    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1y, row2y, row3y);
+    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1x, row2x, row3x);
     rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1z, row2z, row3z);
+    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1y, row2y, row3y);
+    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1x, row2x, row3x);
 }
 
 // rotates all lights by the specified angle around the Y axis

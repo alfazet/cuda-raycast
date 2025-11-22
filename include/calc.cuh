@@ -51,13 +51,13 @@ inline __device__ __host__ void triangleIntersection(float3 origin, float3 dir, 
     }
     float3 s_e1_cross = cross(s, e1);
     float v = inv_det * dot(dir, s_e1_cross);
-    if (v < 0 || u + v > 1.0)
+    if (v < 0 || u + v > 1.0f)
     {
         return;
     }
     // u and v are the barycentric coordinates of the hit point inside the triangle
     *t = max(0.0f, inv_det * dot(e2, s_e1_cross));
-    *bary = make_float3(u, v, 1.0f - u - v);
+    *bary = make_float3(1.0f - u - v, u, v);
 }
 
 inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
