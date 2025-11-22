@@ -21,20 +21,20 @@ __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* 
     }
 }
 
-__device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, Light* lights, int nLights,
+__device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights, int nLights,
                                float3 surfaceColor, float kD, float kS, float kA,
                                float alpha)
 {
     float3 resColor = ZERO;
     for (int i = 0; i < nLights; i++)
     {
-        float3 toLight = normalize(lights[i].pos - hitPoint);
+        float3 toLight = normalize(lights.pos[i] - hitPoint);
         float nlDot = max(dot(normal, toLight), 0.0f);
         float3 view = normalize(cameraPos - hitPoint);
         float3 rVec = normalize(2.0f * nlDot * normal - toLight);
         float rvDot = max(dot(rVec, view), 0.0f);
         float rvDotPow = powf(rvDot, alpha);
-        resColor += lights[i].color * surfaceColor * (nlDot * kD + rvDotPow * kS);
+        resColor += lights.color[i] * surfaceColor * (nlDot * kD + rvDotPow * kS);
     }
     float ambientI = min(0.25f * nLights, 1.0f);
     resColor += kA * ambientI * surfaceColor;
@@ -46,7 +46,7 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, TriangleSOA faces,
                                                NormalsSOA normals,
                                                int nFaces,
-                                               Light* lights, int nLights, float3 surfaceColor, float kD, float kS,
+                                               LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
                                                float kA, float alpha, float3 baseCameraPos, float3 rayDir)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -171,7 +171,7 @@ __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSO
 }
 
 // rotates all lights by the specified angle around the Y axis
-__global__ void lightRotationKernel(Light* originalLights, Light* rotatedLights, int nLights, float angle)
+__global__ void lightRotationKernel(LightSOA originalLights, LightSOA rotatedLights, int nLights, float angle)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
     if (tx >= nLights)
@@ -181,7 +181,7 @@ __global__ void lightRotationKernel(Light* originalLights, Light* rotatedLights,
     float3 row1 = make_float3(cosf(angle), 0.0f, sinf(angle));
     float3 row2 = make_float3(0.0f, 1.0f, 0.0f);
     float3 row3 = make_float3(-sinf(angle), 0.0f, cosf(angle));
-    rotatedLights[tx].pos = vecMatMul3(originalLights[tx].pos, row1, row2, row3);
+    rotatedLights.pos[tx] = vecMatMul3(originalLights.pos[tx], row1, row2, row3);
 }
 
 void destructureFaces(std::vector<Triangle>& faces, std::vector<float3>& a, std::vector<float3>& b,
@@ -196,6 +196,18 @@ void destructureFaces(std::vector<Triangle>& faces, std::vector<float3>& a, std:
         a[i] = faces[i].a;
         b[i] = faces[i].b;
         c[i] = faces[i].c;
+    }
+}
+
+void destructureLights(std::vector<Light>& lights, std::vector<float3>& colors, std::vector<float3>& pos)
+{
+    int n = lights.size();
+    colors.resize(n);
+    pos.resize(n);
+    for (int i = 0; i < n; i++)
+    {
+        colors[i] = lights[i].color;
+        pos[i] = lights[i].pos;
     }
 }
 
@@ -245,10 +257,19 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
     cudaErrCheck(cudaMemcpy(this->m_dOriginalFaces.c, this->m_dFaces.c, this->m_nFaces * sizeof(float3),
                             cudaMemcpyDeviceToDevice));
 
-    cudaErrCheck(cudaMalloc(&this->m_dLights, this->m_nLights * sizeof(Light)));
-    cudaErrCheck(cudaMemcpy(this->m_dLights, lights.data(), this->m_nLights * sizeof(Light), cudaMemcpyHostToDevice));
-    cudaErrCheck(cudaMalloc(&this->m_dOriginalLights, this->m_nLights * sizeof(Light)));
-    cudaErrCheck(cudaMemcpy(this->m_dOriginalLights, this->m_dLights, this->m_nLights * sizeof(Light),
+    std::vector<float3> lightsColors, lightsPos;
+    destructureLights(lights, lightsColors, lightsPos);
+    cudaErrCheck(cudaMalloc(&this->m_dLights.color, this->m_nLights * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dLights.pos, this->m_nLights * sizeof(float3)));
+    cudaErrCheck(cudaMemcpy(this->m_dLights.color, lightsColors.data(), this->m_nLights * sizeof(float3),
+                            cudaMemcpyHostToDevice));
+    cudaErrCheck(cudaMemcpy(this->m_dLights.pos, lightsPos.data(), this->m_nLights * sizeof(float3),
+                            cudaMemcpyHostToDevice));
+    cudaErrCheck(cudaMalloc(&this->m_dOriginalLights.color, this->m_nLights * sizeof(float3)));
+    cudaErrCheck(cudaMalloc(&this->m_dOriginalLights.pos, this->m_nLights * sizeof(float3)));
+    cudaErrCheck(cudaMemcpy(this->m_dOriginalLights.color, this->m_dLights.color, this->m_nLights * sizeof(float3),
+                            cudaMemcpyDeviceToDevice));
+    cudaErrCheck(cudaMemcpy(this->m_dOriginalLights.pos, this->m_dLights.pos, this->m_nLights * sizeof(float3),
                             cudaMemcpyDeviceToDevice));
 
     std::vector<float3> normalsA, normalsB, normalsC;
@@ -276,10 +297,10 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
 Renderer::~Renderer()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
-    // cudaErrCheck(cudaFree(this->m_dOriginalNormals));
-    // cudaErrCheck(cudaFree(this->m_dNormals));
-    cudaErrCheck(cudaFree(this->m_dOriginalLights));
-    cudaErrCheck(cudaFree(this->m_dLights));
+    cudaErrCheck(cudaFree(this->m_dOriginalLights.color));
+    cudaErrCheck(cudaFree(this->m_dOriginalLights.pos));
+    cudaErrCheck(cudaFree(this->m_dLights.color));
+    cudaErrCheck(cudaFree(this->m_dLights.pos));
     cudaErrCheck(cudaFree(this->m_dOriginalFaces.a));
     cudaErrCheck(cudaFree(this->m_dOriginalFaces.b));
     cudaErrCheck(cudaFree(this->m_dOriginalFaces.c));

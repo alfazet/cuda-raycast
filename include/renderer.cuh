@@ -31,10 +31,10 @@ private:
     cudaGraphicsResource* m_pboRes{};
     int m_width, m_height, m_nFaces, m_nLights;
     void* m_dTexBuf; // d -> stored on the device
-    float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.25f;
+    float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.2f;
     float3 m_color, m_angles = float3(0.0f, 0.0f, 0.0f); // angles = (yaw, pitch, roll)
     TriangleSOA m_dFaces, m_dOriginalFaces;
-    Light *m_dLights, *m_dOriginalLights;
+    LightSOA m_dLights, m_dOriginalLights;
     NormalsSOA m_dNormals, m_dOriginalNormals;
 };
 

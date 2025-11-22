@@ -5,8 +5,12 @@
 
 struct Light
 {
-    float3 pos;
-    float3 color;
+    float3 pos, color;
+};
+
+struct LightSOA
+{
+    float3 *pos, *color;
 };
 
 #endif //CUDA_RAYCAST_LIGHT_CUH
