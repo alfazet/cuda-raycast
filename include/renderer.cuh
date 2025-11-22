@@ -4,7 +4,6 @@
 #include "calc.cuh"
 #include "camera.cuh"
 #include "common.cuh"
-#include "light.cuh"
 
 __device__ constexpr float3 ZERO = float3(0.0f, 0.0f, 0.0f);
 __device__ constexpr float3 ONE = float3(1.0f, 1.0f, 1.0f);
@@ -17,25 +16,52 @@ class Renderer
 public:
     Camera camera = Camera();
 
-    Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
-             std::vector<Light>& lights,
-             float3 color, float kD, float kS, float kA, float alpha);
+    Renderer(int width, int height, int nFaces, int nLights, float3 color, float kD, float kS, float kA, float alpha);
 
-    ~Renderer();
+    virtual ~Renderer() = default;
 
-    void render();
+    virtual void render() = 0;
 
     void handleKey(int key, float dt);
 
-private:
-    cudaGraphicsResource* m_pboRes{};
+protected:
     int m_width, m_height, m_nFaces, m_nLights;
-    void* m_dTexBuf; // d -> stored on the device
     float m_kD, m_kS, m_kA, m_alpha, m_rotSpeed = 1.0f, m_lightAngle = 0.0f, m_scale = 1.0f, m_scaleSpeed = 0.2f;
     float3 m_color, m_angles = float3(0.0f, 0.0f, 0.0f); // angles = (yaw, pitch, roll)
+};
+
+class RendererGPU : public Renderer
+{
+public:
+    RendererGPU(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
+                std::vector<Light>& lights,
+                float3 color, float kD, float kS, float kA, float alpha);
+
+    ~RendererGPU() override;
+
+    void render() override;
+
+private:
+    cudaGraphicsResource* m_pboRes{};
+    void* m_dTexBuf; // d -> stored on the device
     TriangleSOA m_dFaces, m_dOriginalFaces;
     LightSOA m_dLights, m_dOriginalLights;
     NormalsSOA m_dNormals, m_dOriginalNormals;
+};
+
+class RendererCPU : public Renderer
+{
+public:
+    RendererCPU(int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
+                std::vector<Light>& lights,
+                float3 color, float kD, float kS, float kA, float alpha);
+
+    ~RendererCPU() override;
+
+    void render() override;
+
+private:
+    uchar3* m_texBuf;
 };
 
 #endif //CUDA_RAYCAST_RENDERER_CUH

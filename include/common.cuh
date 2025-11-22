@@ -11,13 +11,6 @@
 #include "glad/gl.h"
 #define GLFW_INCLUDE_GLU 1
 #include "GLFW/glfw3.h"
-#include "glm/glm.hpp"
-#define GLM_FORCE_CUDA
-
-#define GLM_ENABLE_EXPERIMENTAL
-#include "glm/gtc/quaternion.hpp"
-#include "glm/gtx/quaternion.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 
 #include "cuda_runtime.h"
 #include "cuda_gl_interop.h"
@@ -27,14 +20,6 @@
 #include "backends/imgui_impl_opengl3.h"
 
 #include "utils.cuh"
-
-typedef glm::vec2 v2;
-typedef glm::vec3 v3;
-typedef glm::vec4 v4;
-typedef glm::mat2 m2;
-typedef glm::mat3 m3;
-typedef glm::mat4 m4;
-typedef glm::quat quat;
 
 #define ERR_AND_DIE(reason)                                                         \
 {                                                                                   \

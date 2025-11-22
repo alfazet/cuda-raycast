@@ -3,7 +3,6 @@
 
 #include "common.cuh"
 #include "calc.cuh"
-#include "light.cuh"
 
 // parses files describing lighting properties and light sources
 // supports the following types of entries:

@@ -68,9 +68,9 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
 App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
                                   texHeight{DEFAULT_TEXTURE_HEIGHT}, m_dt{0}
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        ERR_AND_DIE("missing required argument: <.obj file path>");
+        ERR_AND_DIE("missing required argument: <.obj file path> <.lights file path>");
     }
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -116,9 +116,21 @@ App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_H
     LightParser lightParser;
     objParser.parseFile(argv[1]);
     lightParser.parseFile(argv[2]);
-    this->renderer = new Renderer(this->m_pbo, this->texWidth, this->texHeight, objParser.faces,
-                                  objParser.orderedNormals, lightParser.lights, lightParser.objectColor, lightParser.kD,
-                                  lightParser.kS, lightParser.kA, lightParser.alpha);
+
+    if (argc >= 4 && strcmp(argv[3], "cpu") == 0)
+    {
+        this->renderer = new RendererCPU(this->texWidth, this->texHeight, objParser.faces,
+                                         objParser.orderedNormals, lightParser.lights, lightParser.objectColor,
+                                         lightParser.kD,
+                                         lightParser.kS, lightParser.kA, lightParser.alpha);
+    }
+    else
+    {
+        this->renderer = new RendererGPU(this->m_pbo, this->texWidth, this->texHeight, objParser.faces,
+                                         objParser.orderedNormals, lightParser.lights, lightParser.objectColor,
+                                         lightParser.kD,
+                                         lightParser.kS, lightParser.kA, lightParser.alpha);
+    }
     glViewport(0, 0, this->texWidth, this->texHeight);
 
     cudaErrCheck(cudaSetDevice(0));
@@ -164,9 +176,9 @@ void App::run()
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        this->renderer->render();
         glBindTexture(GL_TEXTURE_2D, this->m_tex);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->m_pbo);
+        this->renderer->render();
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, this->texWidth, this->texHeight, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glBindVertexArray(this->m_vao);

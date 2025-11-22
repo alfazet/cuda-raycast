@@ -42,6 +42,13 @@ __device__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos,
     return rgbFloatsToBytes(resColor);
 }
 
+void shading(int idxX, int idxY, int width, int height, TriangleSOA faces, NormalsSOA normals, int nFaces,
+             LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
+             float kA, float alpha, float3 baseCameraPos, float3 rayDir)
+{
+
+}
+
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, TriangleSOA faces,
                                                NormalsSOA normals,
                                                int nFaces,
@@ -114,15 +121,10 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
 }
 
 // rotates and scales all faces (together with their normals)
-__global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSOA transFaces,
-                                           NormalsSOA originalNormals,
-                                           NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
+__device__ __host__ void objectTransformation(int idx, TriangleSOA originalFaces, TriangleSOA transFaces,
+                                              NormalsSOA originalNormals,
+                                              NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
 {
-    int tx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tx >= nFaces)
-    {
-        return;
-    }
     // rotation around X
     float3 row1x = make_float3(cosf(angles.x), -sinf(angles.x), 0.0f);
     float3 row2x = make_float3(sinf(angles.x), cosf(angles.x), 0.0f);
@@ -136,39 +138,70 @@ __global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSO
     float3 row2z = make_float3(sinf(angles.z), cosf(angles.z), 0.0f);
     float3 row3z = make_float3(0.0f, 0.0f, 1.0f);
 
-    transFaces.a[tx] = originalFaces.a[tx];
-    transFaces.b[tx] = originalFaces.b[tx];
-    transFaces.c[tx] = originalFaces.c[tx];
-    rotatedNormals.na[tx] = originalNormals.na[tx];
-    rotatedNormals.nb[tx] = originalNormals.nb[tx];
-    rotatedNormals.nc[tx] = originalNormals.nc[tx];
+    transFaces.a[idx] = originalFaces.a[idx];
+    transFaces.b[idx] = originalFaces.b[idx];
+    transFaces.c[idx] = originalFaces.c[idx];
+    rotatedNormals.na[idx] = originalNormals.na[idx];
+    rotatedNormals.nb[idx] = originalNormals.nb[idx];
+    rotatedNormals.nc[idx] = originalNormals.nc[idx];
 
-    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1z, row2z, row3z);
-    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1y, row2y, row3y);
-    transFaces.a[tx] = vecMatMul3(transFaces.a[tx], row1x, row2x, row3x);
-    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1z, row2z, row3z);
-    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1y, row2y, row3y);
-    transFaces.b[tx] = vecMatMul3(transFaces.b[tx], row1x, row2x, row3x);
-    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1z, row2z, row3z);
-    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1y, row2y, row3y);
-    transFaces.c[tx] = vecMatMul3(transFaces.c[tx], row1x, row2x, row3x);
+    transFaces.a[idx] = vecMatMul3(transFaces.a[idx], row1z, row2z, row3z);
+    transFaces.a[idx] = vecMatMul3(transFaces.a[idx], row1y, row2y, row3y);
+    transFaces.a[idx] = vecMatMul3(transFaces.a[idx], row1x, row2x, row3x);
+    transFaces.b[idx] = vecMatMul3(transFaces.b[idx], row1z, row2z, row3z);
+    transFaces.b[idx] = vecMatMul3(transFaces.b[idx], row1y, row2y, row3y);
+    transFaces.b[idx] = vecMatMul3(transFaces.b[idx], row1x, row2x, row3x);
+    transFaces.c[idx] = vecMatMul3(transFaces.c[idx], row1z, row2z, row3z);
+    transFaces.c[idx] = vecMatMul3(transFaces.c[idx], row1y, row2y, row3y);
+    transFaces.c[idx] = vecMatMul3(transFaces.c[idx], row1x, row2x, row3x);
 
-    transFaces.a[tx] *= scale;
-    transFaces.b[tx] *= scale;
-    transFaces.c[tx] *= scale;
+    transFaces.a[idx] *= scale;
+    transFaces.b[idx] *= scale;
+    transFaces.c[idx] *= scale;
 
-    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1z, row2z, row3z);
-    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1y, row2y, row3y);
-    rotatedNormals.na[tx] = vecMatMul3(rotatedNormals.na[tx], row1x, row2x, row3x);
-    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1z, row2z, row3z);
-    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1y, row2y, row3y);
-    rotatedNormals.nb[tx] = vecMatMul3(rotatedNormals.nb[tx], row1x, row2x, row3x);
-    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1z, row2z, row3z);
-    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1y, row2y, row3y);
-    rotatedNormals.nc[tx] = vecMatMul3(rotatedNormals.nc[tx], row1x, row2x, row3x);
+    rotatedNormals.na[idx] = vecMatMul3(rotatedNormals.na[idx], row1z, row2z, row3z);
+    rotatedNormals.na[idx] = vecMatMul3(rotatedNormals.na[idx], row1y, row2y, row3y);
+    rotatedNormals.na[idx] = vecMatMul3(rotatedNormals.na[idx], row1x, row2x, row3x);
+    rotatedNormals.nb[idx] = vecMatMul3(rotatedNormals.nb[idx], row1z, row2z, row3z);
+    rotatedNormals.nb[idx] = vecMatMul3(rotatedNormals.nb[idx], row1y, row2y, row3y);
+    rotatedNormals.nb[idx] = vecMatMul3(rotatedNormals.nb[idx], row1x, row2x, row3x);
+    rotatedNormals.nc[idx] = vecMatMul3(rotatedNormals.nc[idx], row1z, row2z, row3z);
+    rotatedNormals.nc[idx] = vecMatMul3(rotatedNormals.nc[idx], row1y, row2y, row3y);
+    rotatedNormals.nc[idx] = vecMatMul3(rotatedNormals.nc[idx], row1x, row2x, row3x);
+}
+
+__global__ void objectTransformationKernel(TriangleSOA originalFaces, TriangleSOA transFaces,
+                                           NormalsSOA originalNormals,
+                                           NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
+{
+    int tx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tx >= nFaces)
+    {
+        return;
+    }
+    objectTransformation(tx, originalFaces, transFaces, originalNormals, rotatedNormals, nFaces, angles, scale);
+}
+
+void objectTransformationCPU(TriangleSOA originalFaces, TriangleSOA transFaces,
+                             NormalsSOA originalNormals,
+                             NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
+{
+    for (int i = 0; i < nFaces; i++)
+    {
+        objectTransformation(i, originalFaces, transFaces, originalNormals, rotatedNormals, nFaces, angles, scale);
+    }
 }
 
 // rotates all lights by the specified angle around the Y axis
+__device__ __host__ void lightRotation(int idx, LightSOA originalLights, LightSOA rotatedLights, int nLights,
+                                       float angle)
+{
+    float3 row1 = make_float3(cosf(angle), 0.0f, sinf(angle));
+    float3 row2 = make_float3(0.0f, 1.0f, 0.0f);
+    float3 row3 = make_float3(-sinf(angle), 0.0f, cosf(angle));
+    rotatedLights.pos[idx] = vecMatMul3(originalLights.pos[idx], row1, row2, row3);
+}
+
 __global__ void lightRotationKernel(LightSOA originalLights, LightSOA rotatedLights, int nLights, float angle)
 {
     int tx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -176,10 +209,15 @@ __global__ void lightRotationKernel(LightSOA originalLights, LightSOA rotatedLig
     {
         return;
     }
-    float3 row1 = make_float3(cosf(angle), 0.0f, sinf(angle));
-    float3 row2 = make_float3(0.0f, 1.0f, 0.0f);
-    float3 row3 = make_float3(-sinf(angle), 0.0f, cosf(angle));
-    rotatedLights.pos[tx] = vecMatMul3(originalLights.pos[tx], row1, row2, row3);
+    lightRotation(tx, originalLights, rotatedLights, nLights, angle);
+}
+
+void lightRotationCPU(LightSOA originalLights, LightSOA rotatedLights, int nLights, float angle)
+{
+    for (int i = 0; i < nLights; i++)
+    {
+        lightRotation(i, originalLights, rotatedLights, nLights, angle);
+    }
 }
 
 void destructureFaces(std::vector<Triangle>& faces, std::vector<float3>& a, std::vector<float3>& b,
@@ -224,12 +262,9 @@ void destructureNormals(std::vector<Normals>& normals, std::vector<float3>& a, s
     }
 }
 
-Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
-                   std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
-                   float alpha) : m_width{width}, m_height{height},
-                                  m_nFaces{static_cast<int>(faces.size())},
-                                  m_nLights{static_cast<int>(lights.size())}, m_kD{kD},
-                                  m_kS{kS}, m_kA{kA}, m_alpha{alpha}, m_color{color}
+RendererGPU::RendererGPU(uint pbo, int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
+                         std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
+                         float alpha) : Renderer(width, height, faces.size(), lights.size(), color, kD, kS, kA, alpha)
 {
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
@@ -292,7 +327,7 @@ Renderer::Renderer(uint pbo, int width, int height, std::vector<Triangle>& faces
                             cudaMemcpyDeviceToDevice));
 }
 
-Renderer::~Renderer()
+RendererGPU::~RendererGPU()
 {
     cudaErrCheck(cudaGraphicsUnregisterResource(this->m_pboRes));
     cudaErrCheck(cudaFree(this->m_dOriginalLights.color));
@@ -308,7 +343,7 @@ Renderer::~Renderer()
     cudaErrCheck(cudaFree(this->m_dTexBuf));
 }
 
-void Renderer::render()
+void RendererGPU::render()
 {
     cudaErrCheck(cudaGraphicsMapResources(1, &this->m_pboRes));
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_dTexBuf, nullptr, this->m_pboRes));
@@ -332,6 +367,39 @@ void Renderer::render()
         this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
 
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
+}
+
+RendererCPU::RendererCPU(int width, int height, std::vector<Triangle>& faces, std::vector<Normals>& normals,
+                         std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
+                         float alpha) : Renderer(width, height, faces.size(), lights.size(), color, kD, kS, kA, alpha)
+{
+    this->m_texBuf = new uchar3[width * height * sizeof(uchar3)];
+}
+
+RendererCPU::~RendererCPU()
+{
+    delete[] this->m_texBuf;
+}
+
+void RendererCPU::render()
+{
+    for (int i = 0; i < this->m_height; i++)
+    {
+        for (int j = 0; j < this->m_width; j++)
+        {
+            // transform object
+            // rotate lights
+            // shading
+        }
+    }
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, this->m_width * this->m_height * sizeof(uchar3), this->m_texBuf,
+                 GL_STATIC_DRAW);
+}
+
+Renderer::Renderer(int width, int height, int nFaces, int nLights, float3 color, float kD, float kS, float kA,
+                   float alpha) : m_width{width}, m_height{height}, m_nFaces{nFaces}, m_nLights{nLights},
+                                  m_color{color}, m_kD{kD}, m_kS{kS}, m_kA{kA}, m_alpha{alpha}
+{
 }
 
 void Renderer::handleKey(int key, float dt)

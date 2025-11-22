@@ -3,7 +3,6 @@
 
 #include "common.cuh"
 #include "calc.cuh"
-#include "light.cuh"
 
 // parses simplified .obj files
 // supports the following types of entries:
