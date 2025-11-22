@@ -61,7 +61,8 @@ public:
     void render() override;
 
 private:
-    uchar3* m_texBuf;
+    // uchar3* m_texBuf;
+    std::vector<uchar3> m_texBuf;
     TriangleSOA m_faces, m_originalFaces;
     LightSOA m_lights, m_originalLights;
     NormalsSOA m_normals, m_originalNormals;

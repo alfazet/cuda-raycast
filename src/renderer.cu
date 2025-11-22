@@ -1,5 +1,7 @@
 #include "renderer.cuh"
 
+#include <pstl/glue_execution_defs.h>
+
 __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* faces, int* idxs, int nFaces,
                                            float* minT, float3* minBary, int* hitIdx)
 {
@@ -148,21 +150,19 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     }
 }
 
-void shadingCPU(uchar3* texBuf, int width, int height, TriangleSOA faces,
+void shadingCPU(std::vector<uchar3>& texBuf, int width, int height, TriangleSOA faces,
                 NormalsSOA normals,
                 int nFaces,
                 LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
                 float kA, float alpha, float3 baseCameraPos, float3 rayDir)
 {
-    // TODO: parallelize this maybe
-    for (int y = 0; y < height; y++)
+    std::ranges::iota_view indices(0, width * height);
+    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(), [&](int i)
     {
-        for (int x = 0; x < width; x++)
-        {
-            texBuf[y * width + x] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
-                                            kD, kS, kA, alpha, baseCameraPos, rayDir);
-        }
-    }
+        int x = i % width, y = i / width;
+        texBuf[i] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
+                            kD, kS, kA, alpha, baseCameraPos, rayDir);
+    });
 }
 
 // rotates and scales all faces (together with their normals)
@@ -424,7 +424,8 @@ RendererCPU::RendererCPU(int width, int height, std::vector<Triangle>& faces, st
                          std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
                          float alpha) : Renderer(width, height, faces.size(), lights.size(), color, kD, kS, kA, alpha)
 {
-    this->m_texBuf = new uchar3[width * height * sizeof(uchar3)];
+    // this->m_texBuf = new uchar3[width * height * sizeof(uchar3)];
+    this->m_texBuf = std::vector<uchar3>(width * height);
 
     std::vector<float3> facesA, facesB, facesC;
     destructureFaces(faces, facesA, facesB, facesC);
@@ -489,7 +490,7 @@ RendererCPU::~RendererCPU()
     delete[] this->m_faces.a;
     delete[] this->m_faces.b;
     delete[] this->m_faces.c;
-    delete[] this->m_texBuf;
+    // delete[] this->m_texBuf;
 }
 
 void RendererCPU::render()
@@ -501,7 +502,7 @@ void RendererCPU::render()
                this->m_lights,
                this->m_nLights, this->m_color, this->m_kD, this->m_kS, this->m_kA, this->m_alpha,
                this->camera.pos, this->camera.forwardDir);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, this->m_width * this->m_height * sizeof(uchar3), this->m_texBuf,
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, this->m_width * this->m_height * sizeof(uchar3), this->m_texBuf.data(),
                  GL_STATIC_DRAW);
 }
 
