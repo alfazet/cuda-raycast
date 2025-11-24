@@ -65,18 +65,25 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_HEIGHT}, texWidth{DEFAULT_TEXTURE_WIDTH},
-                                  texHeight{DEFAULT_TEXTURE_HEIGHT}, m_dt{0}
+App::App(int argc, char** argv)
 {
-    if (argc < 3)
+    if (argc < 5)
     {
-        ERR_AND_DIE("missing required argument: <.obj file path> <.lights file path>");
+        ERR_AND_DIE("missing required arguments: <.obj file path> <.lights file path> <width> <height>");
     }
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+    this->width = std::atoi(argv[3]);
+    this->height = std::atoi(argv[4]);
+    if (this->width <= 0 || this->height <= 0)
+    {
+        ERR_AND_DIE("window size must be positive");
+    }
+    this->texWidth = this->width;
+    this->texHeight = this->height;
     this->window = glfwCreateWindow(this->width, this->height, "CUDA Raycast", nullptr, nullptr);
     if (this->window == nullptr)
     {
@@ -117,7 +124,7 @@ App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_H
     objParser.parseFile(argv[1]);
     lightParser.parseFile(argv[2]);
 
-    if (argc >= 4 && strcmp(argv[3], "cpu") == 0)
+    if (argc >= 6 && strcmp(argv[5], "cpu") == 0)
     {
         this->renderer = new RendererCPU(this->texWidth, this->texHeight, objParser.faces,
                                          objParser.orderedNormals, lightParser.lights, lightParser.objectColor,
@@ -132,7 +139,6 @@ App::App(int argc, char** argv) : width{DEFAULT_WIN_WIDTH}, height{DEFAULT_WIN_H
                                          lightParser.kS, lightParser.kA, lightParser.alpha);
     }
     glViewport(0, 0, this->texWidth, this->texHeight);
-
     cudaErrCheck(cudaSetDevice(0));
 }
 
@@ -196,17 +202,15 @@ void App::renderImguiFrame(const int fps)
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    if (!ImGui::Begin("Menu", nullptr, 0))
+    ImGui::SetNextWindowSize(ImVec2(75, 25), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    if (!ImGui::Begin("FPS", nullptr, ImGuiWindowFlags_NoDecoration))
     {
         ImGui::End();
         return;
     }
-
-    ImGui::PushItemWidth(0.33f * ImGui::GetWindowWidth());
     ImGui::Text("%d FPS", fps);
     ImGui::End();
-
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }

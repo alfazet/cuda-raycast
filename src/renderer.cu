@@ -156,13 +156,14 @@ void shadingCPU(std::vector<uchar3>& texBuf, int width, int height, TriangleSOA 
                 LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
                 float kA, float alpha, float3 baseCameraPos, float3 rayDir)
 {
-    std::ranges::iota_view indices(0, width * height);
-    std::for_each(std::execution::par_unseq, indices.begin(), indices.end(), [&](int i)
+    for (int y = 0; y < height; y++)
     {
-        int x = i % width, y = i / width;
-        texBuf[i] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
-                            kD, kS, kA, alpha, baseCameraPos, rayDir);
-    });
+        for (int x = 0; x < width; x++)
+        {
+            texBuf[y * width + x] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
+                                            kD, kS, kA, alpha, baseCameraPos, rayDir);
+        }
+    }
 }
 
 // rotates and scales all faces (together with their normals)
