@@ -7,8 +7,6 @@
 #include <sstream>
 #include <vector>
 #include <string>
-#include <ranges>
-#include <execution>
 
 #include "glad/gl.h"
 #define GLFW_INCLUDE_GLU 1

@@ -1,7 +1,5 @@
 #include "renderer.cuh"
 
-#include <pstl/glue_execution_defs.h>
-
 __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* faces, int* idxs, int nFaces,
                                            float* minT, float3* minBary, int* hitIdx)
 {
@@ -44,41 +42,6 @@ __device__ __host__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 c
     return rgbFloatsToBytes(resColor);
 }
 
-uchar3 shading(int idxX, int idxY, int width, int height, TriangleSOA faces, NormalsSOA normals, int nFaces,
-               LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
-               float kA, float alpha, float3 baseCameraPos, float3 rayDir)
-{
-    float aspect_ratio = width / static_cast<float>(height);
-    float x = (2.0f * (idxX / static_cast<float>(width)) - 1.0f) * aspect_ratio;
-    float y = 2.0f * (idxY / static_cast<float>(height)) - 1.0f;
-    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
-
-    float minT = FLT_MAX, t;
-    int hitIdx = -1;
-    float3 hitPointBary, bary;
-    for (int i = 0; i < nFaces; i++)
-    {
-        Triangle face = {.a = faces.a[i], .b = faces.b[i], .c = faces.c[i]};
-        triangleIntersection(cameraPos, rayDir, &face, &t, &bary);
-        if (t > 0.0f && t < minT)
-        {
-            minT = t;
-            hitPointBary = bary;
-            hitIdx = i;
-        }
-    }
-    if (hitIdx == -1)
-    {
-        return BKG_COLOR;
-    }
-    float3 normal = normalize(
-        hitPointBary.x * normals.na[hitIdx] + hitPointBary.y * normals.nb[hitIdx] + hitPointBary.z * normals.nc[
-            hitIdx]);
-    float3 hitPoint = cameraPos + minT * rayDir;
-
-    return computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA, alpha);
-}
-
 template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int height, TriangleSOA faces,
                                                NormalsSOA normals,
                                                int nFaces,
@@ -96,8 +59,7 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     float yPerBlock = 2.0f / static_cast<float>(gridDim.y);
     float blockMinX = baseCameraPos.x - aspect_ratio + blockIdx.x * xPerBlock, blockMinY =
         baseCameraPos.y - 1.0f + blockIdx.y * yPerBlock;
-    // make blocks overlap to prevent visual glitches
-    float blockMaxX = blockMinX + 2.0f * xPerBlock, blockMaxY = blockMinY + 2.0f * yPerBlock;
+    float blockMaxX = blockMinX + 1.5f * xPerBlock, blockMaxY = blockMinY + 1.5f * yPerBlock;
 
     float minT = FLT_MAX;
     int hitIdx = -1;
@@ -131,6 +93,15 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
         __syncthreads();
     }
 
+    // l1.pos, l2.pos, ..., l1.color, l2.color, ...
+    extern __shared__ float3 lightsParams[];
+    // move information about light sources to shared memory
+    // because a lot of threads will be accessing it concurrently
+    if (tidxInBlock < nLights)
+    {
+        lightsParams[tidxInBlock] = lights.pos[tidxInBlock];
+        lightsParams[tidxInBlock + nLights] = lights.color[tidxInBlock];
+    }
     if (tx >= width || ty >= height)
     {
         return;
@@ -150,6 +121,41 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     }
 }
 
+uchar3 computeColorCPU(int idxX, int idxY, int width, int height, TriangleSOA faces, NormalsSOA normals, int nFaces,
+                       LightSOA lights, int nLights, float3 surfaceColor, float kD, float kS,
+                       float kA, float alpha, float3 baseCameraPos, float3 rayDir)
+{
+    float aspect_ratio = width / static_cast<float>(height);
+    float x = (2.0f * (idxX / static_cast<float>(width)) - 1.0f) * aspect_ratio;
+    float y = 2.0f * (idxY / static_cast<float>(height)) - 1.0f;
+    float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
+
+    float minT = FLT_MAX, t;
+    int hitIdx = -1;
+    float3 hitPointBary, bary;
+    for (int i = 0; i < nFaces; i++)
+    {
+        Triangle face = {.a = faces.a[i], .b = faces.b[i], .c = faces.c[i]};
+        triangleIntersection(cameraPos, rayDir, &face, &t, &bary);
+        if (t > 0.0f && t < minT)
+        {
+            minT = t;
+            hitPointBary = bary;
+            hitIdx = i;
+        }
+    }
+    if (hitIdx == -1)
+    {
+        return BKG_COLOR;
+    }
+    float3 normal = normalize(
+        hitPointBary.x * normals.na[hitIdx] + hitPointBary.y * normals.nb[hitIdx] + hitPointBary.z * normals.nc[
+            hitIdx]);
+    float3 hitPoint = cameraPos + minT * rayDir;
+
+    return computeColor(hitPoint, normal, cameraPos, lights, nLights, surfaceColor, kD, kS, kA, alpha);
+}
+
 void shadingCPU(std::vector<uchar3>& texBuf, int width, int height, TriangleSOA faces,
                 NormalsSOA normals,
                 int nFaces,
@@ -160,8 +166,9 @@ void shadingCPU(std::vector<uchar3>& texBuf, int width, int height, TriangleSOA 
     {
         for (int x = 0; x < width; x++)
         {
-            texBuf[y * width + x] = shading(x, y, width, height, faces, normals, nFaces, lights, nLights, surfaceColor,
-                                            kD, kS, kA, alpha, baseCameraPos, rayDir);
+            texBuf[y * width + x] = computeColorCPU(x, y, width, height, faces, normals, nFaces, lights, nLights,
+                                                    surfaceColor,
+                                                    kD, kS, kA, alpha, baseCameraPos, rayDir);
         }
     }
 }
@@ -413,10 +420,12 @@ void RendererGPU::render()
 
     gridDim = dim3((this->m_width + CUDA_BLOCK_DIM_2D.x - 1) / CUDA_BLOCK_DIM_2D.x,
                    (this->m_height + CUDA_BLOCK_DIM_2D.y - 1) / CUDA_BLOCK_DIM_2D.y, 1);
-    shadingKernel<CUDA_BLOCK_DIM_2D.x * CUDA_BLOCK_DIM_2D.y * CUDA_BLOCK_DIM_2D.z><<<gridDim, CUDA_BLOCK_DIM_2D>>>(
-        static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
-        this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color, this->m_kD,
-        this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
+    shadingKernel<CUDA_BLOCK_DIM_2D.x * CUDA_BLOCK_DIM_2D.y * CUDA_BLOCK_DIM_2D.z><<<gridDim, CUDA_BLOCK_DIM_2D,
+        this->m_nLights * 2 * sizeof(float3)>>>(
+            static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
+            this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color,
+            this->m_kD,
+            this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
 
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
 }
@@ -425,7 +434,6 @@ RendererCPU::RendererCPU(int width, int height, std::vector<Triangle>& faces, st
                          std::vector<Light>& lights, float3 color, float kD, float kS, float kA,
                          float alpha) : Renderer(width, height, faces.size(), lights.size(), color, kD, kS, kA, alpha)
 {
-    // this->m_texBuf = new uchar3[width * height * sizeof(uchar3)];
     this->m_texBuf = std::vector<uchar3>(width * height);
 
     std::vector<float3> facesA, facesB, facesC;
@@ -491,7 +499,6 @@ RendererCPU::~RendererCPU()
     delete[] this->m_faces.a;
     delete[] this->m_faces.b;
     delete[] this->m_faces.c;
-    // delete[] this->m_texBuf;
 }
 
 void RendererCPU::render()
