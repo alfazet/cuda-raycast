@@ -37,15 +37,15 @@ struct LightSOA
 };
 
 // return t such that P = origin + t * ray_dir is the point where the ray from origin along ray_dir
-// intersects the given triangle
-// if there's no intersection, return 0
+// intersects the triangle a-b-c
+// if there's no intersection, return with t = 0
 // (implements the Möller-Trumbore algorithm)
-inline __device__ __host__ void triangleIntersection(float3 origin, float3 dir, Triangle* triangle, float* t,
+__device__ __host__ inline void triangleIntersection(float3 origin, float3 dir, float3 a, float3 b, float3 c, float* t,
                                                      float3* bary)
 {
     *t = 0.0f;
-    float3 e1 = triangle->b - triangle->a;
-    float3 e2 = triangle->c - triangle->a;
+    float3 e1 = b - a;
+    float3 e2 = c - a;
     float3 dir_e2_cross = cross(dir, e2);
     float det = dot(e1, dir_e2_cross);
     if (abs(det) < EPS)
@@ -53,7 +53,7 @@ inline __device__ __host__ void triangleIntersection(float3 origin, float3 dir, 
         return;
     }
     float inv_det = 1.0f / det;
-    float3 s = origin - triangle->a;
+    float3 s = origin - a;
     float u = inv_det * dot(s, dir_e2_cross);
     if (u < 0.0f || u > 1.0f)
     {
@@ -70,7 +70,7 @@ inline __device__ __host__ void triangleIntersection(float3 origin, float3 dir, 
     *bary = make_float3(1.0f - u - v, u, v);
 }
 
-inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
+__device__ __host__ inline uchar3 rgbFloatsToBytes(float3 color)
 {
     unsigned char r = static_cast<unsigned char>(255.0 * color.x);
     unsigned char g = static_cast<unsigned char>(255.0 * color.y);
@@ -80,7 +80,7 @@ inline __device__ __host__ uchar3 rgbFloatsToBytes(float3 color)
 }
 
 // matrix given as rows r1, r2, r3
-inline __device__ __host__ float3 vecMatMul3(float3 v, float3 r1, float3 r2, float3 r3)
+__device__ __host__ inline float3 vecMatMul3(float3 v, float3 r1, float3 r2, float3 r3)
 {
     return make_float3(dot(v, r1), dot(v, r2), dot(v, r3));
 }

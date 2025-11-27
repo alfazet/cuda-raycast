@@ -1,7 +1,7 @@
 #include "renderer.cuh"
 
-__device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* faces, int* idxs, int nFaces,
-                                           float* minT, float3* minBary, int* hitIdx)
+__device__ inline void checkTriangleIntersections(float3 origin, float3 dir, float3* faces, int* idxs, int nFaces,
+                                                  float* minT, float3* minBary, int* hitIdx)
 {
     float t;
     float3 bary;
@@ -11,7 +11,7 @@ __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* 
         {
             continue;
         }
-        triangleIntersection(origin, dir, &faces[i], &t, &bary);
+        triangleIntersection(origin, dir, faces[i], faces[i + nFaces], faces[i + 2 * nFaces], &t, &bary);
         if (t > 0.0f && t < *minT)
         {
             *minT = t;
@@ -21,9 +21,10 @@ __device__ void checkTriangleIntersections(float3 origin, float3 dir, Triangle* 
     }
 }
 
-__device__ __host__ uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights, int nLights,
-                                        float3 surfaceColor, float kD, float kS, float kA,
-                                        float alpha)
+__device__ __host__ inline uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights,
+                                               int nLights,
+                                               float3 surfaceColor, float kD, float kS, float kA,
+                                               float alpha)
 {
     float3 resLight = ZERO;
     for (int i = 0; i < nLights; i++)
@@ -59,12 +60,13 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     float yPerBlock = 2.0f / static_cast<float>(gridDim.y);
     float blockMinX = baseCameraPos.x - aspect_ratio + blockIdx.x * xPerBlock, blockMinY =
         baseCameraPos.y - 1.0f + blockIdx.y * yPerBlock;
-    float blockMaxX = blockMinX + 1.5f * xPerBlock, blockMaxY = blockMinY + 1.5f * yPerBlock;
+    // blocks have to overlap a bit to prevent glitches
+    float blockMaxX = blockMinX + 1.75f * xPerBlock, blockMaxY = blockMinY + 1.75f * yPerBlock;
 
     float minT = FLT_MAX;
     int hitIdx = -1;
     float3 hitPointBary;
-    __shared__ Triangle reachableFaces[N];
+    __shared__ float3 reachableFaces[3 * N]; // layout: a a a a ... b b b b ... c c c c ...
     __shared__ int reachableIdxs[N];
     for (int i = 0; i < nFaces; i += N)
     {
@@ -80,7 +82,9 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
             isReachable = minX <= blockMaxX && minY <= blockMaxY && maxX >= blockMinX && maxY >= blockMinY;
             if (isReachable)
             {
-                reachableFaces[tidxInBlock] = Triangle{.a = vA, .b = vB, .c = vC};
+                reachableFaces[tidxInBlock] = vA;
+                reachableFaces[tidxInBlock + N] = vB;
+                reachableFaces[tidxInBlock + 2 * N] = vC;
                 reachableIdxs[tidxInBlock] = faceIdx;
             }
         }
@@ -93,15 +97,6 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
         __syncthreads();
     }
 
-    // l1.pos, l2.pos, ..., l1.color, l2.color, ...
-    extern __shared__ float3 lightsParams[];
-    // move information about light sources to shared memory
-    // because a lot of threads will be accessing it concurrently
-    if (tidxInBlock < nLights)
-    {
-        lightsParams[tidxInBlock] = lights.pos[tidxInBlock];
-        lightsParams[tidxInBlock + nLights] = lights.color[tidxInBlock];
-    }
     if (tx >= width || ty >= height)
     {
         return;
@@ -135,8 +130,7 @@ uchar3 computeColorCPU(int idxX, int idxY, int width, int height, TriangleSOA fa
     float3 hitPointBary, bary;
     for (int i = 0; i < nFaces; i++)
     {
-        Triangle face = {.a = faces.a[i], .b = faces.b[i], .c = faces.c[i]};
-        triangleIntersection(cameraPos, rayDir, &face, &t, &bary);
+        triangleIntersection(cameraPos, rayDir, faces.a[i], faces.b[i], faces.c[i], &t, &bary);
         if (t > 0.0f && t < minT)
         {
             minT = t;
@@ -420,12 +414,11 @@ void RendererGPU::render()
 
     gridDim = dim3((this->m_width + CUDA_BLOCK_DIM_2D.x - 1) / CUDA_BLOCK_DIM_2D.x,
                    (this->m_height + CUDA_BLOCK_DIM_2D.y - 1) / CUDA_BLOCK_DIM_2D.y, 1);
-    shadingKernel<CUDA_BLOCK_DIM_2D.x * CUDA_BLOCK_DIM_2D.y * CUDA_BLOCK_DIM_2D.z><<<gridDim, CUDA_BLOCK_DIM_2D,
-        this->m_nLights * 2 * sizeof(float3)>>>(
-            static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
-            this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color,
-            this->m_kD,
-            this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
+    shadingKernel<CUDA_BLOCK_DIM_2D.x * CUDA_BLOCK_DIM_2D.y * CUDA_BLOCK_DIM_2D.z><<<gridDim, CUDA_BLOCK_DIM_2D>>>(
+        static_cast<uchar3*>(this->m_dTexBuf), this->m_width, this->m_height,
+        this->m_dFaces, this->m_dNormals, this->m_nFaces, this->m_dLights, this->m_nLights, this->m_color,
+        this->m_kD,
+        this->m_kS, this->m_kA, this->m_alpha, this->camera.pos, this->camera.forwardDir);
 
     cudaErrCheck(cudaGraphicsUnmapResources(1, &this->m_pboRes));
 }
