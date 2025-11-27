@@ -21,6 +21,7 @@ __device__ inline void checkTriangleIntersections(float3 origin, float3 dir, flo
     }
 }
 
+// calculates the color using Phong shading with Phong's lighting model
 __device__ __host__ inline uchar3 computeColor(float3 hitPoint, float3 normal, float3 cameraPos, LightSOA lights,
                                                int nLights,
                                                float3 surfaceColor, float kD, float kS, float kA,
@@ -53,23 +54,31 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     int ty = blockIdx.y * blockDim.y + threadIdx.y;
     int tidxInBlock = threadIdx.y * blockDim.x + threadIdx.x;
     float aspect_ratio = width / static_cast<float>(height);
+    // (x, y) = the coordinates of the pixel that this thread is responsible for
     float x = (2.0f * (tx / static_cast<float>(width)) - 1.0f) * aspect_ratio;
     float y = 2.0f * (ty / static_cast<float>(height)) - 1.0f;
+    // the camera stays fixed on the Z-axis and is parallel to it
     float3 cameraPos = baseCameraPos + make_float3(x, y, 0.0f);
+    // what range of x/y coords does one thread block span
+    // for example: if there are 10 blocks and the image is 1000px wide, then xPerBlock = 100px
     float xPerBlock = 2.0f * aspect_ratio / static_cast<float>(gridDim.x);
     float yPerBlock = 2.0f / static_cast<float>(gridDim.y);
     float blockMinX = baseCameraPos.x - aspect_ratio + blockIdx.x * xPerBlock, blockMinY =
         baseCameraPos.y - 1.0f + blockIdx.y * yPerBlock;
-    // blocks have to overlap a bit to prevent glitches
+    // blocks need to have some overlap to prevent visual glitches
     float blockMaxX = blockMinX + 1.75f * xPerBlock, blockMaxY = blockMinY + 1.75f * yPerBlock;
 
     float minT = FLT_MAX;
     int hitIdx = -1;
     float3 hitPointBary;
+    // reachableFaces = only the faces that can possibly be hit by rays fired from
+    // this block's pixels (threads)
     __shared__ float3 reachableFaces[3 * N]; // layout: a a a a ... b b b b ... c c c c ...
+    // the indices of the reachable faces (needed to recover the normal vectors later)
     __shared__ int reachableIdxs[N];
     for (int i = 0; i < nFaces; i += N)
     {
+        // iterate through faces in batches of blockSize
         int faceIdx = i + tidxInBlock, isReachable = 0;
         reachableIdxs[tidxInBlock] = -1;
         if (faceIdx < nFaces)
@@ -89,11 +98,16 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
             }
         }
         int anyReachable = __syncthreads_or(isReachable);
+        // only check the intersections if there's at least one face that's reachable by any
+        // of the threads in this block
         if (anyReachable && tx < width && ty < height)
         {
+            // check intersections with faces from this batch
             checkTriangleIntersections(cameraPos, rayDir, reachableFaces, reachableIdxs, N, &minT, &hitPointBary,
                                        &hitIdx);
         }
+        // syncthreads because we don't want to start another series of writes before
+        // "checkTriangleIntersecions" ends for all threads
         __syncthreads();
     }
 
@@ -103,6 +117,7 @@ template <int N> __global__ void shadingKernel(uchar3* texBuf, int width, int he
     }
     if (hitIdx == -1)
     {
+        // if nothing was hit
         texBuf[ty * width + tx] = BKG_COLOR;
     }
     else
@@ -168,6 +183,8 @@ void shadingCPU(std::vector<uchar3>& texBuf, int width, int height, TriangleSOA 
 }
 
 // rotates and scales all faces (together with their normals)
+// rotation is based on Euler angles
+// equations from: https://flothesof.github.io/intrinsic-extrinsic-rotations-euler-angles.html
 __device__ __host__ void objectTransformation(int idx, TriangleSOA originalFaces, TriangleSOA transFaces,
                                               NormalsSOA originalNormals,
                                               NormalsSOA rotatedNormals, int nFaces, float3 angles, float scale)
@@ -240,8 +257,7 @@ void objectTransformationCPU(TriangleSOA originalFaces, TriangleSOA transFaces,
 }
 
 // rotates all lights by the specified angle around the Y axis
-__device__ __host__ void lightRotation(int idx, LightSOA originalLights, LightSOA rotatedLights, int nLights,
-                                       float angle)
+__device__ __host__ void lightRotation(int idx, LightSOA originalLights, LightSOA rotatedLights, float angle)
 {
     float3 row1 = make_float3(cosf(angle), 0.0f, sinf(angle));
     float3 row2 = make_float3(0.0f, 1.0f, 0.0f);
@@ -256,17 +272,18 @@ __global__ void lightRotationKernel(LightSOA originalLights, LightSOA rotatedLig
     {
         return;
     }
-    lightRotation(tx, originalLights, rotatedLights, nLights, angle);
+    lightRotation(tx, originalLights, rotatedLights, angle);
 }
 
 void lightRotationCPU(LightSOA originalLights, LightSOA rotatedLights, int nLights, float angle)
 {
     for (int i = 0; i < nLights; i++)
     {
-        lightRotation(i, originalLights, rotatedLights, nLights, angle);
+        lightRotation(i, originalLights, rotatedLights, angle);
     }
 }
 
+// helper function to change AoS to SoA
 void destructureFaces(std::vector<Triangle>& faces, std::vector<float3>& a, std::vector<float3>& b,
                       std::vector<float3>& c)
 {
@@ -316,6 +333,7 @@ RendererGPU::RendererGPU(uint pbo, int width, int height, std::vector<Triangle>&
     cudaErrCheck(cudaGraphicsGLRegisterBuffer(&this->m_pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard));
     cudaErrCheck(cudaMalloc(&this->m_dTexBuf, this->m_width * this->m_height * sizeof(uchar3)));
 
+    // allocate all required memory and copy data into it
     std::vector<float3> facesA, facesB, facesC;
     destructureFaces(faces, facesA, facesB, facesC);
     cudaErrCheck(cudaMalloc(&this->m_dFaces.a, this->m_nFaces * sizeof(float3)));
@@ -401,6 +419,8 @@ void RendererGPU::render()
     cudaErrCheck(cudaGraphicsMapResources(1, &this->m_pboRes));
     cudaErrCheck(cudaGraphicsResourceGetMappedPointer(&this->m_dTexBuf, nullptr, this->m_pboRes));
     dim3 gridDim;
+
+    // render = transform objects + rotate lights + find the color of each pixel
 
     gridDim = dim3((this->m_nFaces + CUDA_BLOCK_DIM_1D.x - 1) / CUDA_BLOCK_DIM_1D.x, 1, 1);
     objectTransformationKernel<<<gridDim, CUDA_BLOCK_DIM_1D>>>(this->m_dOriginalFaces, this->m_dFaces,

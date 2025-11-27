@@ -27,7 +27,7 @@ void initBuffers(uint& vao, uint& vbo, uint& vboTex, uint& ebo)
     tex_coords[1] = float2(1.0f, 0.0f);
     tex_coords[2] = float2(0.0f, 0.0f);
     tex_coords[3] = float2(0.0f, 1.0f);
-    // we'll render triangles 0-1-3 and 1-2-3
+    // we will render triangles 0-1-3 and 1-2-3 on the screen
     // (the indices refer to the vertices/texture coordinates above)
     int indices[] = {0, 1, 3, 1, 2, 3};
 
@@ -41,7 +41,7 @@ void initBuffers(uint& vao, uint& vbo, uint& vboTex, uint& ebo)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float2), nullptr);
     glEnableVertexAttribArray(0);
 
-    // vertex attrib 1 (tex coords)
+    // vertex attrib 1 (texture coords)
     glBindBuffer(GL_ARRAY_BUFFER, vboTex);
     glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(float2), tex_coords, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float2), nullptr);
@@ -65,6 +65,8 @@ void initTexture(uint& tex, uint& pbo, int width, int height)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+// mostly boilerplate code to initialize the window
+// and OpenGL
 App::App(int argc, char** argv)
 {
     if (argc < 5)
@@ -163,6 +165,7 @@ void App::run()
     int fps = 0, framesThisSecond = 0;
     float prevTime = static_cast<float>(glfwGetTime());
     float prevSeconds = 0.0f;
+    // main program loop, renders one frame on each iteration
     while (!glfwWindowShouldClose(this->window))
     {
         this->handleKeys();

@@ -101,7 +101,7 @@ void ObjParser::parseLine(const std::string& line)
     {
         if (this->normals.empty())
         {
-            // obj file without normals
+            // no normals were specified
             this->faces.emplace_back(this->parseFace(rest));
         }
         else
@@ -135,6 +135,7 @@ void ObjParser::parseFile(const char* path)
             {
                 e1 = face.b - face.a;
                 e2 = face.c - face.a;
+                // normal vector to a plane spanned by vectors e1 and e2 = e1 x e2
                 avgNormal += cross(e1, e2);
             }
             vertexNormals[i] = normalize(avgNormal / static_cast<float>(this->neighbors[i].size()));

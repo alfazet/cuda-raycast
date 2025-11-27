@@ -9,6 +9,7 @@
 // - v x y z (vertex)
 // - vn x y z (normal)
 // - f v1/vn1 v2/vn2 v3/vn3 (or f v1 v2 v3 if no normals were defined) (triangular face)
+// all vertices need to be specified before any faces
 // invalid entries are ignored
 class ObjParser
 {

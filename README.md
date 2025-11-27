@@ -1,12 +1,12 @@
 # CUDA Raycast
 
-## Usage
+## Compilation and usage
 
 Requirements:
 
 - CMake (at least v3.10)
 - GNU Make
-- NVCC compiler and CUDA
+- NVCC compiler with CUDA 12.9
 
 ```shell
 mkdir build && cd build

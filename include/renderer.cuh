@@ -8,8 +8,10 @@
 __device__ constexpr float3 ZERO = float3(0.0f, 0.0f, 0.0f);
 __device__ constexpr float3 ONE = float3(1.0f, 1.0f, 1.0f);
 __device__ constexpr uchar3 BKG_COLOR = uchar3(32, 32, 32);
-constexpr dim3 CUDA_BLOCK_DIM_1D = dim3(512, 1, 1);
-constexpr dim3 CUDA_BLOCK_DIM_2D = dim3(32, 16, 1);
+// profiling with nvprof showed no difference between 1024,
+// 512 and 256 threads/block (on a 1050ti GPU with 768 CUDA cores)
+constexpr dim3 CUDA_BLOCK_DIM_1D = dim3(1024, 1, 1);
+constexpr dim3 CUDA_BLOCK_DIM_2D = dim3(32, 32, 1);
 
 class Renderer
 {
